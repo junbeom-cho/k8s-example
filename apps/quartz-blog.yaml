@@ -37,7 +37,7 @@ spec:
               cpu: "100m"
               memory: "128Mi"
             limits:
-              cpu: "500m"  # 0.5 CPU
+              cpu: "500m"
               memory: "512Mi"
           
           livenessProbe:
@@ -52,7 +52,7 @@ spec:
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
-
+ 
       volumes:
         - name: blog-content
           hostPath:
@@ -62,7 +62,7 @@ spec:
           hostPath:
             path: /home/junbeom/quartz-blog/default.conf
             type: File
-
+ 
 ---
 # ==================================================================================
 # 2. Service : 클러스터 내부 네트워크 연결 (ClusterIP)
@@ -79,7 +79,7 @@ spec:
   ports:
     - port: 80
       targetPort: 80
-
+ 
 ---
 # ==================================================================================
 # 3. Ingress : Traefik 대문 설정 (외부 도메인 연결)
@@ -89,9 +89,8 @@ kind: Ingress
 metadata:
   name: quartz-blog-ingress
   namespace: apps
-  annotations:
-    kubernetes.io/ingress.class: traefik
 spec:
+  ingressClassName: traefik
   rules:
     - host: obsidian.junbeom.work
       http:
