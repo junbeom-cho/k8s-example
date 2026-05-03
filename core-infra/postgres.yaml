@@ -26,7 +26,7 @@ metadata:
   name: postgres-svc
   namespace: core-infra
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: postgresql
   ports:
@@ -34,7 +34,6 @@ spec:
       name: postgres
       port: 5432
       targetPort: 5432
-      nodePort: 13000
 
 ---
 # ====================================================================================
@@ -44,7 +43,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgresql
-  namepsace: core-infra
+  namespace: core-infra
   labels:
     app: postgresql
 spec:
@@ -105,6 +104,8 @@ spec:
               value: "Asia/Seoul"
             - name: LANG
               value: "en_US.utf8"
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
 
           ports:
             - containerPort: 5432
@@ -127,7 +128,10 @@ spec:
           resources:
             limits:
               cpu: "2.0"
-              momory: "2Gi"
+              memory: "2Gi"
+            requests:
+              cpu: "1.0"
+              memory: "1Gi"
 
           securityContext:
             allowPrivilegeEscalation: false
@@ -138,11 +142,11 @@ spec:
             - name: dshm
               mountPath: /dev/shm
 
-          volumes:
-            - name: postgres-data
-              persistentVolumeClaim:
-                claimName: postgres-pvc
-            - name: dshm
-              emptyDir:
-                medium: Memory
-                sizeLimit: 256Mi
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
