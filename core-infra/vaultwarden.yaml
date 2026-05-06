@@ -1,0 +1,178 @@
+# =================================================================================
+# 1. ConfigMap : Vaultwarden 설정 (필요 시 추가 가능)
+# =================================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden-config
+  namespace: core-infra
+data:
+  DOMAIN: "https://vault.junbeom.work"
+  SIGNUPS_ALLOWED: "false"
+  INVITATIONS_ALLOWED: "true"
+  SIGNUPS_VERIFY: "true"
+  SHOW_PASSWORD_HINT: "false"
+  WEB_VAULT_ENABLED: "true"
+  WEBSOCKET_ENABLED: "true"
+  ROCKET_WORKERS: "10"
+  SMTP_HOST: "smtp.resend.com"
+  SMTP_FROM: "vault@junbeom.work"
+  SMTP_FROM_NAME: "My Vault"
+  SMTP_PORT: "587"
+  SMTP_SECURITY: "starttls"
+  SMTP_USERNAME: "resend"
+  SMTP_TIMEOUT: "30"
+  SMTP_DEBUG: "true"
+---
+
+# =================================================================================
+# 2. PersistentVolumeClaim : Vaultwarden 데이터(SQLite 등) 영구 저장소
+# =================================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-pvc
+  namespace: core-infra
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# ==================================================================================
+# 3. Service : 클러스터 내부 네트워크 연결 (ClusterIP)
+# ==================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultwarden-svc
+  namespace: core-infra
+spec:
+  type: ClusterIP
+  selector:
+    app: vaultwarden
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+# ====================================================================================
+# 4. Deployment : Vaultwarden 애플리케이션 실행
+# ====================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  namespace: core-infra
+  labels:
+    app: vaultwarden
+    category: security-identity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaultwarden
+  template:
+    metadata:
+      labels:
+        app: vaultwarden
+    spec:
+      containers:
+        - name: vaultwarden
+          image: vaultwarden/server:latest
+          ports:
+            - containerPort: 80
+          
+          envFrom:
+            - configMapRef:
+                name: vaultwarden-config
+          
+          # ==========================================
+          # 환경변수 설정 (일반 설정은 평문, 비밀값은 Secret 참조)
+          # ==========================================
+          env:
+            - name: ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vaultwarden-secret
+                  key: ADMIN_TOKEN
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vaultwarden-secret
+                  key: SMTP_PASSWORD
+
+          # ==========================================
+          # 헬스체크 (httpGet 방식으로 최적화)
+          # ==========================================
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+          # ==========================================
+          # 리소스 제한
+          # ==========================================
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1.0"
+              memory: "512Mi"
+
+          # ==========================================
+          # 볼륨 마운트
+          # ==========================================
+          volumeMounts:
+            - name: vaultwarden-data
+              mountPath: /data/
+
+      volumes:
+        - name: vaultwarden-data
+          persistentVolumeClaim:
+            claimName: vaultwarden-pvc
+
+---
+# ==================================================================================
+# 5. Ingress : Traefik 대문 설정 + cert-manager (Cloudflare SSL 자동화)
+# ==================================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vaultwarden-ingress
+  namespace: core-infra
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - vault.junbeom.work # 실제 사용할 도메인
+      secretName: vaultwarden-tls-secret
+  rules:
+    - host: vault.junbeom.work # 실제 사용할 도메인
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vaultwarden-svc
+                port:
+                  number: 80
+
+---
