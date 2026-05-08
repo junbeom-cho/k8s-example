@@ -1,0 +1,11 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: internal-only
+  namespace: core-infra
+spec:
+  ipAllowList:
+    sourceRange:
+      - "127.0.0.1/32"        # 로컬호스트
+      - "192.168.0.0/16"      # 일반적인 내부망 대역
+      - "100.68.21.100/32"  # Tailscale VPN

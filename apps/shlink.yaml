@@ -9,10 +9,10 @@ metadata:
 data:
   TZ: "Asia/Seoul"
   MULTI_SEGMENT_SLUGS_ENABLED: "true"
-  DEFAULT_DOMAIN: "link.junbeom.work"
+  DEFAULT_DOMAIN: "link.junbeom.work"     # 기본 도메인 설정
   IS_HTTPS_ENABLED: "true"
   DB_DRIVER: "postgres"
-  DB_HOST: "postgres-svc.core-infra.svc.cluster.local" 
+  DB_HOST: "postgres-svc.core-infra.svc.cluster.local"  # PostgreSQL 서비스 주소
   REDIS_SERVERS: "tcp://shlink-redis-svc:6379"
   SHELL_VERBOSITY: "3"
 
@@ -268,6 +268,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.middlewares: "apps-internal-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik
   tls:

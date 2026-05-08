@@ -1,10 +1,13 @@
+# ==========================================================
+# Cert-Manager ClusterIssuer
+# ==========================================================
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-cloudflare
 spec:
   acme:
-    email: dev.junbeom@gmail.com
+    email: dev.junbeom@gmail.com # Let's Encrypt 계정 이메일 주소 (수정 필요)
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-cloudflare-account-key
