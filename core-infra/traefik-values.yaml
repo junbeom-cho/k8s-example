@@ -6,6 +6,8 @@ providers:
   kubernetesIngress:
     publishedService:
       enabled: false
+  kubernetesCRD:
+    ingressClass: traefik
 
 ports:
   web:
@@ -33,3 +35,8 @@ ingressRoute:
     enabled: false
 
 hostNetwork: true
+
+logs:
+  access:
+    enabled: true
+

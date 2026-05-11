@@ -1,0 +1,48 @@
+# ====================================================================
+# Cloudbeaver Helm Chart Values
+# https://artifacthub.io/packages/helm/avisto/cloudbeaver
+
+
+image:
+  registry: docker.io
+  repository: dbeaver/cloudbeaver
+  tag: "26"
+  digest: ""
+  
+  pullPolicy: IfNotPresent
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 5
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 5
+
+hostname: "beaver.junbeom.work"
+
+
+ingress:
+  enabled: true
+  ingressClassName: "traefik"
+  pathType: Prefix
+  apiVersion: ""
+  controller: default
+  hostname: "beaver.junbeom.work"
+  hostnameStrict: false
+  path: "/"
+  servicePort: http
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
+  labels: {}
+  tls: true
+  selfSigned: false
+ 
