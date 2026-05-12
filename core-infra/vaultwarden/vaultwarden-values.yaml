@@ -1,0 +1,380 @@
+# Default values for vaultwarden.
+
+# -- Database configuration
+database:
+  # -- Database type @default sqlite
+  # @enum sqlite;mysql;postgresql
+  type: postgresql #@schema enum: [sqlite, mysql, postgresql]
+  # -- Enable DB Write-Ahead-Log for SQLite, disabled for other databases
+  wal: true
+  # -- URL for external databases (mysql://user:pass@host:port/database-name or postgresql://user:pass@host:port/database-name)
+  url: ""
+  # -- Use existing secret for database URL, key 'database-url'
+  existingSecret: "vaultwarden-secret"
+  # -- Use a different key for the existing secret for database URL
+  existingSecretKey: ""
+  # -- Set the maximum size of the database connection pool
+  maxConnections: 10 # @schema minimum: 1
+  # -- Set the minimum size of the database connection pool
+  minConnections: 2 # @schema minimum: 1
+  # -- Timeout in seconds before idle connections to the database are closed
+  idleTimeout: 600
+  # -- Connection retries during startup, 0 for infinite. 1 second between retries
+  retries: 15
+
+# -- Vaultwarden application configuration
+vaultwarden:
+  # -- Set Vaultwarden URL, mandatory for invitations over email. Format: https://name or http://name
+  domain: "https://vault.junbeom.work"
+  # -- Allow any user to sign-up
+  allowSignups: false
+  # -- Whitelist domains allowed to sign-up. 'allowSignups' is ignored if set
+  signupDomains: []
+  # -- Verify e-mail before login is enabled. SMTP must be enabled
+  verifySignup: true
+  # -- Require that email is successfully sent before login. SMTP must be enabled
+  requireEmail: true
+  # -- Maximum attempts before an email token is reset
+  emailAttempts: 3
+  # -- Email token validity in seconds
+  emailTokenExpiration: 600
+  # -- Allow invited users to sign-up even if registration is disabled
+  allowInvitation: true
+  # -- Number of hours after which invitation tokens expire
+  invitationExpiration: 120
+  # -- Allow users to set password hints
+  passwordHintsAllowed: false
+  # -- Show password hints
+  showPasswordHint: false
+  # -- Default organization name in invitation e-mails
+  defaultInviteName: ""
+  # -- Enable Web Vault (static content)
+  enableWebVault: true
+  # -- Enable Bitwarden Sends globally
+  enableSends: true
+  # -- Restrict creation of orgs. Options: 'all', 'none' or comma-separated list of users
+  orgCreationUsers: all
+  # -- Limit attachment disk usage per organization (in KB)
+  attachmentLimitOrg: ""
+  # -- Limit attachment disk usage per user (in KB)
+  attachmentLimitUser: ""
+  # -- Limit send disk usage per user (in KB)
+  sendLimitUser: ""
+  # -- HaveIBeenPwned API Key
+  hibpApiKey: ""
+  # -- Number of days to auto-delete trashed items
+  autoDeleteDays: ""
+  # -- Enable organization event logging
+  orgEvents: false
+  # -- Organization event retention in days. Empty to not delete
+  orgEventsRetention: ""
+  # -- Allow users to change their email
+  emailChangeAllowed: true
+  # -- Prefer IPv6 (AAAA) DNS resolving over IPv4. Useful in IPv6-only environments
+  dnsPreferIPv6: false
+  # -- Map of custom environment variables. Use carefully
+  extraEnv:
+    TZ: "Asia/Seoul"
+    WEBSOCKET_ENABLED: "true"
+    ROCKET_WORKERS: "10"
+
+  # -- Admin portal configuration
+  admin:
+    # -- Enable admin portal
+    enabled: true
+    # -- Disable admin token (makes portal accessible to anyone, use carefully)
+    disableAdminToken: false
+    # -- Token for admin login, auto-generated if not defined
+    token: ""
+    # -- Use existing secret for the admin token. Key is 'admin-token'
+    existingSecret: "vaultwarden-secret"
+
+  # -- Emergency access configuration
+  emergency:
+    # -- Allow any user to enable emergency access
+    enabled: true
+    # -- Schedule to send expiration reminders (cron format)
+    reminder: "0 3 * * * *"
+    # -- Schedule to grant emergency access requests (cron format)
+    timeout: "0 7 * * * *"
+
+  # -- SMTP configuration
+  smtp:
+    # -- Enable SMTP
+    enabled: true
+    # -- SMTP hostname (required if SMTP is enabled)
+    host: "smtp.resend.com"
+    # -- SMTP sender e-mail address (required if SMTP is enabled)
+    from: "vault@junbeom.work"
+    # -- SMTP sender name
+    fromName: "Junbeom's VaultWarden"
+    # -- SMTP security @default starttls
+    # @enum starttls;force_tls;off
+    security: starttls # @schema enum: [starttls, force_tls, off]
+    # -- SMTP port. Defaults: 465 for force_tls, 587 for starttls, 25 for off
+    port: "587"
+    # -- SMTP Authentication Mechanisms. Comma-separated: 'Plain', 'Login', 'Xoauth2'
+    authMechanism: Plain
+    # -- Hostname to be sent for SMTP HELO
+    heloName: ""
+    # -- SMTP timeout in seconds
+    timeout: 15
+    # -- Accept valid certificate with mismatched hostname (DANGEROUS)
+    invalidHostname: false
+    # -- Accept invalid certificates (DANGEROUS)
+    invalidCertificate: false
+    # -- SMTP username
+    user: ""
+    # -- SMTP password (required if user is specified)
+    password: ""
+    # -- Use existing secret for SMTP. Keys: 'smtp-user' and 'smtp-password'
+    existingSecret: "vaultwarden-secret"
+    # -- Embed images as email attachments
+    embedImages: true
+
+  # -- Yubico OTP authentication configuration
+  yubico:
+    # -- Enable Yubico OTP authentication
+    enabled: false
+    # -- Yubico server (defaults to YubiCloud)
+    server: ""
+    # -- Yubico Client ID
+    clientId: ""
+    # -- Yubico Secret Key
+    secretKey: ""
+    # -- Use existing secret for Yubico. Keys: 'yubico-client-id' and 'yubico-secret-key'
+    existingSecret: ""
+
+  # -- Logging configuration
+  log:
+    # -- Log to file (file path)
+    file: ""
+    # -- Log level @default ""
+    # @enum trace;debug;info;warn;error;off
+    level: "" # @schema enum: ["", trace, debug, info, warn, error, off]
+    # -- Log timestamp format (chrono strftime format)
+    timeFormat: ""
+
+  # -- Icons configuration
+  icons:
+    # -- Icon download service @default internal
+    # @enum internal;bitwarden;duckduckgo;google
+    service: internal # @schema enum: [internal, bitwarden, duckduckgo, google]
+    # -- Disable download of external icons (still serves from cache)
+    disableDownload: false
+    # -- Cache TTL for icons in seconds (0 = no purging)
+    cache: "2592000"
+    # -- Cache TTL for failed icon lookups in seconds (0 = no purging)
+    cacheFailed: "259200"
+    # -- HTTP redirect code for external icon service
+    redirectCode: 302
+
+  # -- Push notifications configuration
+  push:
+    # -- Enable push notifications
+    enabled: false
+    # -- Installation ID from Bitwarden
+    installationId: ""
+    # -- Installation Key from Bitwarden
+    installationKey: ""
+    # -- Relay URI
+    relayUri: ""
+    # -- Identity URI
+    identityUri: ""
+    # -- Use existing secret for Push. Keys: 'push-id' and 'push-key'
+    existingSecret: ""
+
+  sso:
+    # -- Activate the SSO
+    enabled: false
+    # -- Disable email+Master password authentication
+    only: false
+    # -- On SSO Signup if a user with a matching email already exists make the association (default `true`)
+    signupsMatchEmail: true
+    # -- Allow unknown email verification status (default `false`). Allowing this with `SSO_SIGNUPS_MATCH_EMAIL` open potential account takeover.
+    allowUnknownEmailVerification: false
+    # -- The OpenID Connect Discovery endpoint of your SSO
+    authority: ""
+    # -- Optional, allow to override scopes if needed (default `"email profile"`)
+    scopes: "email profile"
+    # -- Optional, allow to add extra parameter to the authorize redirection (default `""`)
+    authorizeExtraParams: ""
+    # -- Activate PKCE for the Auth Code flow (default `true`).
+    pkce: true
+    # -- Optional, Regex to trust additional audience for the IdToken (`client_id` is always trusted). Use single quote when writing the regex: `'^$'`.
+    audienceTrusted: ""
+    # -- Client Id
+    clientId: ""
+    # -- Client Secret
+    clientSecret: ""
+    # -- Use existing secret for SSO. Keys are 'sso-client-id' and 'sso-client-secret'
+    existingSecret: ""
+    # -- Optional Master password policy (`enforceOnLogin` is not supported).
+    masterPasswordPolicy: ""
+    # -- Enable to use SSO only for authentication not session lifecycle
+    authOnlyNotSession: false
+    # -- Cache calls to the discovery endpoint, duration in seconds, `0` to disable (default `0`);
+    clientCacheExpiration: 0
+    # -- Log all tokens for easier debugging (default `false`, `LOG_LEVEL=debug` or `LOG_LEVEL=info,vaultwarden::sso=debug` need to be set)
+    debugTokens: false
+    # -- Cron schedule for purging leftover incomplete SSO auth records. Defaults to daily. Set blank to disable
+    purgeSchedule: "0 20 0 * * *"
+
+# -- Service configuration
+service:
+  # -- Service type
+  type: ClusterIP # @schema enum: [ClusterIP, NodePort, LoadBalancer]
+  # -- HTTP port
+  httpPort: 80
+  # -- External traffic policy
+  externalTrafficPolicy: Cluster # @schema enum: [Cluster, Local]
+  # -- LoadBalancer IP (when type is LoadBalancer)
+  loadBalancerIP: ""
+  # -- NodePort configuration
+  nodePorts:
+    # -- HTTP node port
+    http: 0
+
+# -- Kubernetes Ingress configuration
+ingress:
+  # -- Enable Ingress
+  enabled: true
+  # -- Ingress class name
+  className: "traefik"
+  # -- Ingress hostname
+  host: "vault.junbeom.work"
+  # -- Ingress annotations
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
+  # -- TLS configuration
+  tls:
+    - hosts:
+        - vault.junbeom.work
+      secretName: vaultwarden-tls-secret
+
+# -- Traefik IngressRoute CRD configuration
+ingressRoute:
+  # -- Enable Traefik IngressRoute
+  enabled: false
+  # -- Use new CRD (Traefik 2.10+, traefik.io namespace)
+  newCRD: false
+  # -- IngressRoute hostname
+  host: ""
+  # -- Traefik entrypoints
+  entrypoints:
+    - websecure
+  # -- Traefik middlewares
+  middlewares: []
+  # -- TLS configuration
+  tls: {}
+
+# -- Persistence configuration
+persistence:
+  # -- Enable persistent storage
+  enabled: true
+  # -- PVC size
+  size: 2Gi # @schema pattern: ^[0-9]+(Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)?$
+  # -- Access mode
+  accessMode: ReadWriteOnce # @schema enum: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod]
+  # -- Storage class ("-" for default)
+  storageClass: "local-path"
+  # -- Use existing PVC
+  existingClaim: ""
+  # -- PVC annotations
+  annotations: {}
+  # -- Additional PVC labels
+  labels: {}
+
+# -- Custom volume definition (cannot be used with persistence)
+customVolume: {}
+
+# -- Additional/Extra volumes for deployment
+additionalVolumes: []
+
+# -- Additional/Extra volumeMounts in deployment
+additionalVolumeMounts: []
+  #- name: example-volume
+  #  mountPath: /path/to/mount/specific.txt
+  #  subPath: something.txt
+  #  readOnly: true
+  #- name: secret-volume
+  #  mountPath: /path/to/secret/
+
+# -- Docker image configuration
+image:
+  # -- Image pull policy
+  pullPolicy: IfNotPresent # @schema enum: [Always, IfNotPresent, Never]
+  # -- Image repository
+  repository: vaultwarden/server
+  # -- Image tag (defaults to Chart appVersion)
+  tag: "1.36.0"
+
+# -- Image pull secrets
+imagePullSecrets: []
+# -- Name override
+nameOverride: ""
+# -- Full name override
+fullnameOverride: ""
+
+# -- Number of replicas
+replicaCount: 1
+
+# -- Revision history limit
+revisionHistoryLimit: 10
+
+# -- Service account configuration
+serviceAccount:
+  # -- Create service account
+  create: false
+  # -- Service account annotations
+  annotations: {}
+  # -- Service account name (generated if not set)
+  name: ""
+  # -- Auto-mount service account token
+  automountServiceAccountToken: false
+
+# -- Mount service account token in pod
+automountServiceAccountToken: false
+
+# -- Pod annotations
+podAnnotations: {}
+# -- Pod labels
+podLabels: {}
+
+# -- Deployment annotations
+deploymentAnnotations: {}
+
+# -- Liveness and readiness probe configuration
+probes: {}
+
+# -- Init containers (container spec)
+initContainers: []
+
+# -- Sidecar containers (container spec)
+sidecars: []
+
+# -- Pod security context
+podSecurityContext:
+  fsGroup: 65534
+
+# -- Container security context
+securityContext:
+  runAsUser: 65534
+  runAsGroup: 65534
+
+# -- Deployment strategy
+strategy: {}
+
+# -- Resource limits and requests
+resources: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
