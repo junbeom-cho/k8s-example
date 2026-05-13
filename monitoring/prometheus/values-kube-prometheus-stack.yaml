@@ -1,0 +1,68 @@
+# ==========================================================
+# kube-prometheus-stack Helm Chart Values
+# ==========================================================
+
+
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+grafana:
+  admin:
+    existingSecret: grafana-secret
+    userKey: "admin-user"
+    passwordKey: "admin-password"
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    type: pvc
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  ingress:
+    enabled: true
+    ingressClassName: "traefik"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+      traefik.ingress.kubernetes.io/router.middlewares: "monitoring-cloudflare-only@kubernetescrd"
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    hosts:
+      - grafana.junbeom.work
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls-secret
+        hosts:
+          - grafana.junbeom.work
+    grafana.ini:
+      server:
+        domain: grafana.junbeom.work
+        root_url: https://grafana.junbeom.work
+        serve_from_sub_path: false
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
