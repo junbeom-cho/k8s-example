@@ -23,3 +23,9 @@
         href: https://obsidian.junbeom.work/
         description: 노트 관리 도구
         icon: obsidian.svg
+
+- Core-Infra:
+    - Cert-Manager:
+        href: https://cert-manager.io/
+        description: Kubernetes용 인증서 관리 도구
+        icon: cert-manager.svg
