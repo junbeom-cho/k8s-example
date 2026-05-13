@@ -1,0 +1,25 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/services/
+
+- Apps:
+    - CloudBeaver:
+        href: https://beaver.junbeom.work/
+        description: 웹기반 데이터베이스 관리 도구
+        icon: cloudbeaver.svg
+    - Shlink:
+        href: https://shlink.junbeom.work/
+        description: URL 단축 서비스
+        icon: shlink.svg
+    - VaultWarden:
+        href: https://vault.junbeom.work/
+        description: 비밀번호 관리자
+        icon: vaultwarden-light.svg
+    - Syncthing:
+        href: https://sync.junbeom.work/
+        description: 파일 동기화 서비스
+        icon: syncthing.svg
+    - Obsidian:
+        href: https://obsidian.junbeom.work/
+        description: 노트 관리 도구
+        icon: obsidian.svg
