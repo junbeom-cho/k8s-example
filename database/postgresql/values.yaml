@@ -3,6 +3,8 @@
 # https://artifacthub.io/packages/helm/bitnami/postgresql
 # ====================================================================
 
+fullnameOverride: "postgres"
+
 image:
   registry: docker.io
   repository: bitnami/postgresql
@@ -18,8 +20,11 @@ auth:
 
 
 primary:
+  extraEnvVars:
+    - name: TZ
+      value: "Asia/Seoul"
   persistence:
     enabled: true
     accessMode: ReadWriteOnce
-    size: 10Gi
-    storageClass: "local-path"
+    size: 15Gi
+    storageClass: "longhorn"

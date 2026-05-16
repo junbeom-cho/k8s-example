@@ -1,0 +1,130 @@
+# =============================================
+# Scrutiny Yaml
+# =============================================
+
+---
+# PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scrutiny
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scrutiny
+  namespace: monitoring
+  labels:
+    app: scrutiny
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: scrutiny
+  template:
+    metadata:
+      labels:
+        app: scrutiny
+    spec:
+      containers:
+        - name: scrutiny
+          image: ghcr.io/analogj/scrutiny:master-omnibus
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: COLLECTOR_SCAN_ARGS
+              value: "--device /dev/nvme0 --device /dev/nvme1"
+          volumeMounts:
+            - name: nvme0
+              mountPath: /dev/nvme0
+            - name: nvme1
+              mountPath: /dev/nvme1
+            - name: run-udev
+              mountPath: /run/udev
+              readOnly: true
+            - name: scrutiny-storage
+              mountPath: /opt/scrutiny/config
+              subPath: config
+            - name: scrutiny-storage
+              mountPath: /opt/scrutiny/influxdb
+              subPath: influxdb
+      volumes:
+        - name: nvme0
+          hostPath:
+            path: /dev/nvme0
+        - name: nvme1
+          hostPath:
+            path: /dev/nvme1
+        - name: run-udev
+          hostPath:
+            path: /run/udev
+        - name: scrutiny-storage
+          persistentVolumeClaim:
+            claimName: scrutiny  
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrutiny
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app: scrutiny
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scrutiny
+  namespace: monitoring
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "monitoring-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: "traefik"
+  tls:
+    - secretName: scrutiny-tls-secret
+      hosts:
+        - scrutiny.junbeom.work
+  rules:
+    - host: scrutiny.junbeom.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: scrutiny
+                port:
+                  name: http

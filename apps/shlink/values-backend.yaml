@@ -39,7 +39,7 @@ config:
       password: ""
       username: "shlink_user"
     driver: postgres
-    host: "postgresql"
+    host: "postgres.database.svc.cluster.local"
     port: 5432
     useEncryption: false
   general:
@@ -188,6 +188,9 @@ redis:
   architecture: standalone
   auth:
     enabled: false
+  master:
+    persistence:
+      enabled: false
 
 extraEnv:
   - name: GEOLITE_LICENSE_KEY

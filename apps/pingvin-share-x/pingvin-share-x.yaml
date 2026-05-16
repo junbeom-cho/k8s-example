@@ -1,0 +1,176 @@
+# ==================================================
+# PersistentVolumeClaim (Longhorn)
+# 설정 DB 및 커스텀 이미지를 안전하게 관리할 볼륨
+# ==================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pingvin-backend-config-pvc
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi # DB 및 설정 파일용이므로 1GB면 충분합니다.
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pingvin-frontend-images-pvc
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 500Mi # 로고/파비콘 등 커스텀 이미지용
+
+---
+# ==================================================
+# ClamAV (Service & Deployment)
+# ==================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  namespace: apps
+spec:
+  type: ClusterIP
+  selector:
+    app: clamav
+  ports:
+    - name: tcp-clamav
+      port: 3310
+      targetPort: 3310
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clamav
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clamav
+  template:
+    metadata:
+      labels:
+        app: clamav
+    spec:
+      containers:
+        - name: clamav
+          image: clamav/clamav:latest
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1.0"
+          ports:
+            - containerPort: 3310
+          livenessProbe:
+            tcpSocket:
+              port: 3310
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 3310
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+# ==================================================
+# Pingvin Share X (Service & Deployment)
+# ==================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: pingvin-share-x
+  namespace: apps
+spec:
+  type: LoadBalancer
+  selector:
+    app: pingvin-share-x
+  ports:
+    - name: frontend
+      port: 13005
+      targetPort: 3000
+    - name: backend
+      port: 13006
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pingvin-share-x
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pingvin-share-x
+  template:
+    metadata:
+      labels:
+        app: pingvin-share-x
+    spec:
+      containers:
+        - name: pingvin-share-x
+          image: smp46/pingvin-share-x:latest
+          env:
+            - name: TRUST_PROXY
+              value: "true"
+            - name: CLAMAV_HOST
+              value: "clamav"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1.0"
+          ports:
+            - containerPort: 3000
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            # 1. DB/설정 디렉터리 (Longhorn 마운트)
+            - name: backend-config
+              mountPath: /opt/app/backend/data
+            # 2. 실제 공유 파일 업로드 디렉터리 (hostPath 중첩 마운트)
+            - name: backend-uploads
+              mountPath: /opt/app/backend/data/uploads
+            # 3. 커스텀 이미지 저장소 (Longhorn 마운트)
+            - name: frontend-images
+              mountPath: /opt/app/frontend/public/img
+      volumes:
+        - name: backend-config
+          persistentVolumeClaim:
+            claimName: pingvin-backend-config-pvc
+        - name: frontend-images
+          persistentVolumeClaim:
+            claimName: pingvin-frontend-images-pvc
+        - name: backend-uploads
+          hostPath:
+            path: /opt/data/pingvin-share-x/uploads
+            type: DirectoryOrCreate

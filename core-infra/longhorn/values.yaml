@@ -1,0 +1,30 @@
+# ================================================
+# Longhorn Helm Chart Values
+# ================================================
+
+persistence:
+  defaultClassReplicaCount: 1
+  reclaimPolicy: Retain 
+
+csi:
+  attacherReplicaCount: 1
+  provisionerReplicaCount: 1
+  resizerReplicaCount: 1
+  snapshotterReplicaCount: 1
+
+defaultSettings:
+  defaultReplicaCount: "1"
+  replicaReplenishmentWaitInterval: 0
+  defaultDataPath: "/data/longhorn"
+  storageReservedPercentageForDefaultDisk: 5
+
+longhornUI:
+  replicas: 1
+
+ingress:
+  enabled: true
+  ingressClassName: "traefik" 
+  host: "longhorn.junbeom.work"
+  path: /
+  pathType: Prefix
+  

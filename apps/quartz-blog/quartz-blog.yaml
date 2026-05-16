@@ -92,6 +92,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
 spec:
   ingressClassName: traefik             # SSL 자동화를 위해 Traefik IngressClass 지정
   rules:

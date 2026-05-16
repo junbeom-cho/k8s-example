@@ -1,0 +1,19 @@
+# ========================================================
+# cert-manager Helm Chart Values
+# ========================================================
+
+crds:
+  enabled: true
+
+replicaCount: 1
+
+extraArgs:
+  - --dns01-recursive-nameservers-only
+  - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53
+
+webhook:
+  replicaCount: 1
+  timeoutSeconds: 10
+
+cainjector:
+  replicaCount: 1

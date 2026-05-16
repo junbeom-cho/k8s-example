@@ -25,7 +25,17 @@
         icon: obsidian.svg
 
 - Core-Infra:
-    - Cert-Manager:
-        href: https://cert-manager.io/
-        description: Kubernetes용 인증서 관리 도구
-        icon: cert-manager.svg
+    - Longhorn:
+        href: https://longhorn.junbeom.work/
+        description: 클라우드 네이티브 분산 블록 스토리지
+        icon: longhorn.svg
+
+- Monitoring:
+    - Scrutiny:
+        href: https://scrutiny.junbeom.work/
+        description: 스토리지 모니터링 도구
+        icon: scrutiny.svg
+    - Grafana:
+        href: https://grafana.junbeom.work/
+        description: 모니터링 대시보드
+        icon: grafana.svg

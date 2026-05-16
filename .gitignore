@@ -1,1 +1,2 @@
 *.env
+apps/homepage/config/logs
