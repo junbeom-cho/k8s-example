@@ -83,7 +83,10 @@ spec:
             - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
               value: "false"
             - name: DIUN_NOTIF_DISCORD_WEBHOOKURL
-              value: "https://discordapp.com/api/webhooks/1506342405966790747/O9OnSrVXm7iK3wn2wiJ0sBl-RpC64I8eRR9hAQcbA7c1C5058jaiHJ5B33USWY7YBLtF"
+              valueFrom:
+                secretKeyRef:
+                  name: diun-secret
+                  key: discord-webhook-url
           volumeMounts:
             - mountPath: "/data"
               name: "data"
