@@ -1,0 +1,63 @@
+# 이미지 설정
+image:
+  repository: ghcr.io/keel-hq/keel
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# 이미지 풀 시크릿 (Private 레지스트리 사용 시 기입)
+imagePullSecrets: []
+
+# 환경변수 및 추가 인자
+extraEnv: []
+extraArgs: []
+
+# 레지스트리 확인 방식 설정 (하나만 활성화 권장)
+# 1. Polling: 주기적으로 레지스트리 체크
+polling:
+  enabled: true
+  defaultSchedule: "@every 1h"
+
+# Helm 공급자 설정 (Helm v3 필수 적용)
+helmProvider:
+  enabled: true
+  version: "v3"
+
+# 로그 및 알림 레벨 설정 (debug, info, success, warn, error, fatal)
+notificationLevel: info
+
+# Discord 알림 설정
+discord:
+  enabled: true
+  webhookUrl: "https://discordapp.com/api/webhooks/1506342405966790747/O9OnSrVXm7iK3wn2wiJ0sBl-RpC64I8eRR9hAQcbA7c1C5058jaiHJ5B33USWY7YBLtF"
+
+# 서비스 설정 (Webhook 수신용)
+service:
+  enabled: true
+  type: ClusterIP
+  externalPort: 9300
+  clusterIP: ""
+
+# 웹후크 수신용 Ingress 설정
+ingress:
+  enabled: false
+
+# RBAC 권한 설정
+rbac:
+  enabled: true
+  serviceAccount:
+    create: true
+  clusterRole:
+    create: true
+
+# 컨테이너 리소스 제한
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# 보안 컨텍스트
+podSecurityContext: {}
+containerSecurityContext: {}
