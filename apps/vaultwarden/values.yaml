@@ -1,377 +1,472 @@
-# Default values for vaultwarden.
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Vaultwarden Helm Chart - Default Values
+# =============================================================================
+# Focus: sqlite + pvc + ingress + smtp
 
-# -- Database configuration
-database:
-  # -- Database type @default sqlite
-  # @enum sqlite;mysql;postgresql
-  type: postgresql #@schema enum: [sqlite, mysql, postgresql]
-  # -- Enable DB Write-Ahead-Log for SQLite, disabled for other databases
-  wal: true
-  # -- URL for external databases (mysql://user:pass@host:port/database-name or postgresql://user:pass@host:port/database-name)
-  url: ""
-  # -- Use existing secret for database URL, key 'database-url'
-  existingSecret: "vaultwarden-secret"
-  # -- Use a different key for the existing secret for database URL
-  existingSecretKey: ""
-  # -- Set the maximum size of the database connection pool
-  maxConnections: 10 # @schema minimum: 1
-  # -- Set the minimum size of the database connection pool
-  minConnections: 2 # @schema minimum: 1
-  # -- Timeout in seconds before idle connections to the database are closed
-  idleTimeout: 600
-  # -- Connection retries during startup, 0 for infinite. 1 second between retries
-  retries: 15
+nameOverride: ""
+fullnameOverride: "vaultwarden"
+commonLabels: {}
+clusterDomain: cluster.local
 
-# -- Vaultwarden application configuration
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Vaultwarden image repository
+  repository: docker.io/vaultwarden/server
+  # -- Vaultwarden image tag
+  tag: "1.36.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Core Settings
+# =============================================================================
+
+# -- Public domain used by Vaultwarden. Strongly recommended when ingress is enabled.
+domain: "vault.junbeom.work"
+
 vaultwarden:
-  # -- Set Vaultwarden URL, mandatory for invitations over email. Format: https://name or http://name
-  domain: "https://vault.junbeom.work"
-  # -- Allow any user to sign-up
-  allowSignups: false
-  # -- Whitelist domains allowed to sign-up. 'allowSignups' is ignored if set
-  signupDomains: []
-  # -- Verify e-mail before login is enabled. SMTP must be enabled
-  verifySignup: true
-  # -- Require that email is successfully sent before login. SMTP must be enabled
-  requireEmail: true
-  # -- Maximum attempts before an email token is reset
-  emailAttempts: 3
-  # -- Email token validity in seconds
-  emailTokenExpiration: 600
-  # -- Allow invited users to sign-up even if registration is disabled
-  allowInvitation: true
-  # -- Number of hours after which invitation tokens expire
-  invitationExpiration: 120
-  # -- Allow users to set password hints
-  passwordHintsAllowed: false
-  # -- Show password hints
-  showPasswordHint: false
-  # -- Default organization name in invitation e-mails
-  defaultInviteName: ""
-  # -- Enable Web Vault (static content)
-  enableWebVault: true
-  # -- Enable Bitwarden Sends globally
-  enableSends: true
-  # -- Restrict creation of orgs. Options: 'all', 'none' or comma-separated list of users
-  orgCreationUsers: all
-  # -- Limit attachment disk usage per organization (in KB)
-  attachmentLimitOrg: ""
-  # -- Limit attachment disk usage per user (in KB)
-  attachmentLimitUser: ""
-  # -- Limit send disk usage per user (in KB)
-  sendLimitUser: ""
-  # -- HaveIBeenPwned API Key
-  hibpApiKey: ""
-  # -- Number of days to auto-delete trashed items
-  autoDeleteDays: ""
-  # -- Enable organization event logging
-  orgEvents: false
-  # -- Organization event retention in days. Empty to not delete
-  orgEventsRetention: ""
-  # -- Allow users to change their email
+  # -- Allow new user signups
+  signupsAllowed: false
+  # -- Require email verification for new signups
+  signupsVerify: true
+  # -- Seconds before another signup verification email can be sent
+  signupsVerifyResendTime: 3600
+  # -- Maximum number of signup verification re-sends triggered by login attempts
+  signupsVerifyResendLimit: 6
+  # -- Domain allowlist for signups when signupsAllowed is false
+  signupsDomainsWhitelist: []
+    # - example.com
+    # - example.org
+  # -- Allow invitation flows
+  invitationsAllowed: true
+  # -- Name used in invitation emails that do not belong to a specific organization
+  invitationOrgName: Vaultwarden
+  # -- Hours before invite and verification tokens expire
+  invitationExpirationHours: 120
+  # -- Allow Bitwarden Send
+  sendsAllowed: true
+  # -- Allow emergency access features
+  emergencyAccessAllowed: true
+  # -- Allow users to change their email addresses
   emailChangeAllowed: true
-  # -- Prefer IPv6 (AAAA) DNS resolving over IPv4. Useful in IPv6-only environments
-  dnsPreferIPv6: false
-  # -- Map of custom environment variables. Use carefully
-  extraEnv:
-    TZ: "Asia/Seoul"
-    WEBSOCKET_ENABLED: "true"
-    ROCKET_WORKERS: "10"
-
-  # -- Admin portal configuration
-  admin:
-    # -- Enable admin portal
+  # -- Enable organization event logging
+  orgEventsEnabled: false
+  # -- Which users may create organizations: "", "all", "none", or comma-separated emails
+  orgCreationUsers: ""
+  # -- Default number of server-side password hashing iterations
+  passwordIterations: 600000
+  # -- Allow users to set and view password hints
+  passwordHintsAllowed: false
+  # -- Show password hints directly on the login page when SMTP is unavailable
+  showPasswordHint: false
+  websocket:
+    # -- Enable websocket notifications
     enabled: true
-    # -- Disable admin token (makes portal accessible to anyone, use carefully)
-    disableAdminToken: false
-    # -- Token for admin login, auto-generated if not defined
-    token: ""
-    # -- Use existing secret for the admin token. Key is 'admin-token'
-    existingSecret: "vaultwarden-secret"
+  # -- Vaultwarden log level
+  logLevel: info
+  proxy:
+    # -- Header used by Vaultwarden to identify the client IP behind a reverse proxy
+    ipHeader: X-Real-IP
 
-  # -- Emergency access configuration
-  emergency:
-    # -- Allow any user to enable emergency access
-    enabled: true
-    # -- Schedule to send expiration reminders (cron format)
-    reminder: "0 3 * * * *"
-    # -- Schedule to grant emergency access requests (cron format)
-    timeout: "0 7 * * * *"
+# =============================================================================
+# Admin
+# =============================================================================
 
-  # -- SMTP configuration
-  smtp:
-    # -- Enable SMTP
-    enabled: true
-    # -- SMTP hostname (required if SMTP is enabled)
-    host: "smtp.resend.com"
-    # -- SMTP sender e-mail address (required if SMTP is enabled)
-    from: "vault@junbeom.work"
-    # -- SMTP sender name
-    fromName: "Junbeom's VaultWarden"
-    # -- SMTP security @default starttls
-    # @enum starttls;force_tls;off
-    security: starttls # @schema enum: [starttls, force_tls, off]
-    # -- SMTP port. Defaults: 465 for force_tls, 587 for starttls, 25 for off
-    port: "587"
-    # -- SMTP Authentication Mechanisms. Comma-separated: 'Plain', 'Login', 'Xoauth2'
-    authMechanism: Plain
-    # -- Hostname to be sent for SMTP HELO
-    heloName: ""
-    # -- SMTP timeout in seconds
-    timeout: 15
-    # -- Accept valid certificate with mismatched hostname (DANGEROUS)
-    invalidHostname: false
-    # -- Accept invalid certificates (DANGEROUS)
-    invalidCertificate: false
-    # -- SMTP username
-    user: ""
-    # -- SMTP password (required if user is specified)
+admin:
+  # -- Admin token value. Prefer an Argon2 PHC string for production.
+  # -- Example with the container image:
+  # --   docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
+  # -- Example with the argon2 CLI:
+  # --   echo -n 'change-me' | argon2 "$(openssl rand -base64 32)" -e -id -k 65540 -t 3 -p 4
+  # -- Official reference:
+  # --   https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+  token: ""
+  # -- Existing secret containing the admin token
+  existingSecret: "vaultwarden-secret"
+  # -- Secret key for the admin token in admin.existingSecret
+  existingSecretTokenKey: ADMIN_TOKEN
+
+# =============================================================================
+# SMTP
+# =============================================================================
+
+smtp:
+  # -- Enable SMTP configuration
+  enabled: true
+  host: "smtp.resend.com"
+  port: 587
+  from: "vaultwarden@junbeom.work"
+  fromName: "Vaultwarden <"
+  # -- SMTP connection timeout in seconds
+  timeout: 15
+  security: starttls
+  username: "resend"
+  password: ""
+  # -- Comma-separated SMTP auth mechanisms, for example: Plain,Login
+  authMechanism: ""
+  # -- Optional HELO name sent to the SMTP server
+  heloName: ""
+  # -- Embed images as email attachments
+  embedImages: true
+  # -- Enable verbose SMTP troubleshooting logs
+  debug: false
+  # -- Accept invalid SMTP certificates. Dangerous and not recommended.
+  acceptInvalidCerts: false
+  # -- Accept invalid SMTP hostnames. Dangerous and not recommended.
+  acceptInvalidHostnames: false
+  # -- Existing secret containing the SMTP password
+  existingSecret: "vaultwarden-secret"
+  # -- Secret key for the SMTP password in smtp.existingSecret
+  existingSecretPasswordKey: SMTP_PASSWORD
+
+# =============================================================================
+# Database and Persistence
+# =============================================================================
+
+database:
+  # -- Database mode selection: auto | sqlite | external | postgresql | mysql
+  # -- In auto mode the chart uses this precedence:
+  # -- 1. database.external.host
+  # --    or database.external.existingSecret
+  # -- 2. postgresql.enabled
+  # -- 3. mysql.enabled
+  # -- 4. sqlite fallback
+  mode: external
+  sqlite:
+    # -- Enable SQLite WAL mode on startup. Review the official guidance before changing this.
+    enableWal: false
+  connection:
+    # -- Number of retries while connecting to the database on startup. Use 0 for infinite retries.
+    retries: 15
+    # -- Timeout in seconds when acquiring a database connection
+    timeout: 30
+    # -- Timeout in seconds before idle database connections are closed
+    idleTimeout: 600
+    # -- Minimum number of database connections in the pool
+    minConnections: 2
+    # -- Maximum number of database connections in the pool
+    maxConnections: 10
+    # -- Optional initialization SQL run for each new database connection
+    init: ""
+  external:
+    # -- External database vendor: postgres | mysql
+    vendor: postgres
+    host: "postgres.database.svc.cluster.local"
+    port: "5432"
+    name: vaultwarden
+    username: vaultwarden
+    # -- Password used to build DATABASE_URL when database.external.existingSecret is not used
     password: ""
-    # -- Use existing secret for SMTP. Keys: 'smtp-user' and 'smtp-password'
+    # -- Existing secret containing a complete DATABASE_URL value
     existingSecret: "vaultwarden-secret"
-    # -- Embed images as email attachments
-    embedImages: true
+    # -- Secret key for the DATABASE_URL value in database.external.existingSecret
+    existingSecretUrlKey: DATABASE_URL
+    # -- Optional query string appended to the generated DATABASE_URL, without the leading '?'
+    parameters: ""
 
-  # -- Yubico OTP authentication configuration
-  yubico:
-    # -- Enable Yubico OTP authentication
-    enabled: false
-    # -- Yubico server (defaults to YubiCloud)
-    server: ""
-    # -- Yubico Client ID
-    clientId: ""
-    # -- Yubico Secret Key
-    secretKey: ""
-    # -- Use existing secret for Yubico. Keys: 'yubico-client-id' and 'yubico-secret-key'
-    existingSecret: ""
+data:
+  persistence:
+    # -- Persist `/data` with a PVC
+    enabled: true
+    # -- Existing PVC name
+    existingClaim: "vaultwarden-pvc"
+    # -- Optional selector labels for pre-existing PV matching. Useful for restore or pre-bound storage flows.
+    selectorLabels: {}
+      # restore-id: vaultwarden-prod-2026-03-20
+    # -- Storage class for the PVC
+    storageClass: ""
+    # -- Access mode for the PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the PVC
+    size: 2Gi
+    # -- Annotations added to the PVC
+    annotations: {}
 
-  # -- Logging configuration
-  log:
-    # -- Log to file (file path)
-    file: ""
-    # -- Log level @default ""
-    # @enum trace;debug;info;warn;error;off
-    level: "" # @schema enum: ["", trace, debug, info, warn, error, off]
-    # -- Log timestamp format (chrono strftime format)
-    timeFormat: ""
+# =============================================================================
+# Service
+# =============================================================================
 
-  # -- Icons configuration
-  icons:
-    # -- Icon download service @default internal
-    # @enum internal;bitwarden;duckduckgo;google
-    service: internal # @schema enum: [internal, bitwarden, duckduckgo, google]
-    # -- Disable download of external icons (still serves from cache)
-    disableDownload: false
-    # -- Cache TTL for icons in seconds (0 = no purging)
-    cache: "2592000"
-    # -- Cache TTL for failed icon lookups in seconds (0 = no purging)
-    cacheFailed: "259200"
-    # -- HTTP redirect code for external icon service
-    redirectCode: 302
-
-  # -- Push notifications configuration
-  push:
-    # -- Enable push notifications
-    enabled: false
-    # -- Installation ID from Bitwarden
-    installationId: ""
-    # -- Installation Key from Bitwarden
-    installationKey: ""
-    # -- Relay URI
-    relayUri: ""
-    # -- Identity URI
-    identityUri: ""
-    # -- Use existing secret for Push. Keys: 'push-id' and 'push-key'
-    existingSecret: ""
-
-  sso:
-    # -- Activate the SSO
-    enabled: false
-    # -- Disable email+Master password authentication
-    only: false
-    # -- On SSO Signup if a user with a matching email already exists make the association (default `true`)
-    signupsMatchEmail: true
-    # -- Allow unknown email verification status (default `false`). Allowing this with `SSO_SIGNUPS_MATCH_EMAIL` open potential account takeover.
-    allowUnknownEmailVerification: false
-    # -- The OpenID Connect Discovery endpoint of your SSO
-    authority: ""
-    # -- Optional, allow to override scopes if needed (default `"email profile"`)
-    scopes: "email profile"
-    # -- Optional, allow to add extra parameter to the authorize redirection (default `""`)
-    authorizeExtraParams: ""
-    # -- Activate PKCE for the Auth Code flow (default `true`).
-    pkce: true
-    # -- Optional, Regex to trust additional audience for the IdToken (`client_id` is always trusted). Use single quote when writing the regex: `'^$'`.
-    audienceTrusted: ""
-    # -- Client Id
-    clientId: ""
-    # -- Client Secret
-    clientSecret: ""
-    # -- Use existing secret for SSO. Keys are 'sso-client-id' and 'sso-client-secret'
-    existingSecret: ""
-    # -- Optional Master password policy (`enforceOnLogin` is not supported).
-    masterPasswordPolicy: ""
-    # -- Enable to use SSO only for authentication not session lifecycle
-    authOnlyNotSession: false
-    # -- Cache calls to the discovery endpoint, duration in seconds, `0` to disable (default `0`);
-    clientCacheExpiration: 0
-    # -- Log all tokens for easier debugging (default `false`, `LOG_LEVEL=debug` or `LOG_LEVEL=info,vaultwarden::sso=debug` need to be set)
-    debugTokens: false
-    # -- Cron schedule for purging leftover incomplete SSO auth records. Defaults to daily. Set blank to disable
-    purgeSchedule: "0 20 0 * * *"
-
-# -- Service configuration
 service:
   # -- Service type
-  type: ClusterIP # @schema enum: [ClusterIP, NodePort, LoadBalancer]
-  # -- HTTP port
-  httpPort: 80
-  # -- External traffic policy
-  externalTrafficPolicy: Cluster # @schema enum: [Cluster, Local]
-  # -- LoadBalancer IP (when type is LoadBalancer)
-  loadBalancerIP: ""
-  # -- NodePort configuration
-  nodePorts:
-    # -- HTTP node port
-    http: 0
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Container port exposed by Vaultwarden
+  targetPort: 80
+  # -- Set the ipFamilyPolicy for dual-stack (GR-058)
+  ipFamilyPolicy: ''
+  # -- Set the ipFamilies for dual-stack
+  ipFamilies: []
+  # -- Annotations for the Service
+  annotations: {}
 
-# -- Kubernetes Ingress configuration
+# =============================================================================
+# Ingress
+# =============================================================================
+
 ingress:
-  # -- Enable Ingress
+  # -- Enable ingress for Vaultwarden
   enabled: true
-  # -- Ingress class name
-  className: "traefik"
-  # -- Ingress hostname
-  host: "vault.junbeom.work"
-  # -- Ingress annotations
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
-  # -- TLS configuration
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts:
+    - host: vault.junbeom.work
+      paths:
+        - path: /
+          pathType: Prefix
+    # - host: vaultwarden.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
   tls:
     - hosts:
         - vault.junbeom.work
-      secretName: vaultwarden-tls-secret
+      secretName: vaultwarden-tls
+    # - hosts:
+    #     - vaultwarden.example.com
+    #   secretName: vaultwarden-tls
 
-# -- Traefik IngressRoute CRD configuration
-ingressRoute:
-  # -- Enable Traefik IngressRoute
-  enabled: false
-  # -- Use new CRD (Traefik 2.10+, traefik.io namespace)
-  newCRD: false
-  # -- IngressRoute hostname
-  host: ""
-  # -- Traefik entrypoints
-  entrypoints:
-    - websecure
-  # -- Traefik middlewares
-  middlewares: []
-  # -- TLS configuration
-  tls: {}
+# =============================================================================
+# Probes
+# =============================================================================
 
-# -- Persistence configuration
-persistence:
-  # -- Enable persistent storage
-  enabled: true
-  # -- PVC size
-  size: 2Gi # @schema pattern: ^[0-9]+(Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)?$
-  # -- Access mode
-  accessMode: ReadWriteOnce # @schema enum: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod]
-  # -- Storage class ("-" for default)
-  storageClass: "longhorn"
-  # -- Use existing PVC
-  existingClaim: ""
-  # -- PVC annotations
-  annotations: {}
-  # -- Additional PVC labels
-  labels: {}
+probes:
+  liveness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readiness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  startup:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
 
-# -- Custom volume definition (cannot be used with persistence)
-customVolume: {}
+# =============================================================================
+# Resources and Security
+# =============================================================================
 
-# -- Additional/Extra volumes for deployment
-additionalVolumes: []
-
-# -- Additional/Extra volumeMounts in deployment
-additionalVolumeMounts: []
-  #- name: example-volume
-  #  mountPath: /path/to/mount/specific.txt
-  #  subPath: something.txt
-  #  readOnly: true
-  #- name: secret-volume
-  #  mountPath: /path/to/secret/
-
-# -- Docker image configuration
-image:
-  # -- Image pull policy
-  pullPolicy: IfNotPresent # @schema enum: [Always, IfNotPresent, Never]
-  # -- Image repository
-  repository: vaultwarden/server
-  # -- Image tag (defaults to Chart appVersion)
-  tag: "1.36.0"
-
-# -- Image pull secrets
-imagePullSecrets: []
-# -- Name override
-nameOverride: ""
-# -- Full name override
-fullnameOverride: ""
-
-# -- Number of replicas
-replicaCount: 1
-
-# -- Revision history limit
-revisionHistoryLimit: 10
-
-# -- Service account configuration
-serviceAccount:
-  # -- Create service account
-  create: false
-  # -- Service account annotations
-  annotations: {}
-  # -- Service account name (generated if not set)
-  name: ""
-  # -- Auto-mount service account token
-  automountServiceAccountToken: false
-
-# -- Mount service account token in pod
-automountServiceAccountToken: false
-
-# -- Pod annotations
-podAnnotations: {}
-# -- Pod labels
-podLabels: {}
-
-# -- Deployment annotations
-deploymentAnnotations: {}
-
-# -- Liveness and readiness probe configuration
-probes: {}
-
-# -- Init containers (container spec)
-initContainers: []
-
-# -- Sidecar containers (container spec)
-sidecars: []
-
-# -- Pod security context
-podSecurityContext: {}
-
-# -- Container security context
-securityContext: {}
-
-# -- Deployment strategy
-strategy: {}
-
-# -- Resource limits and requests
 resources: {}
 
-# -- Node selector
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
 nodeSelector: {}
-
-# -- Tolerations
 tolerations: []
-
-# -- Affinity rules
 affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable a NetworkPolicy for Vaultwarden
+  enabled: false
+  ingress:
+    # -- Allow traffic from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress peers in native NetworkPolicy format
+    additionalFrom: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: ingress-system
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: traefik
+  egress:
+    # -- Enable egress policy management
+    enabled: false
+    # -- Allow DNS egress for name resolution when egress policy is enabled
+    allowDns: true
+    # -- Additional egress peers in native NetworkPolicy format
+    additionalTo: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: database
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: postgresql
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob support
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 0 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained by the CronJob
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained by the CronJob
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix used in generated backup archive names
+  archivePrefix: vaultwarden
+  # -- Resources applied to the backup uploader and dump/archive init container
+  resources: {}
+  images:
+    uploader:
+      repository: docker.io/helmforge/mc
+      tag: "1.0.0"
+      pullPolicy: IfNotPresent
+    sqlite:
+      repository: docker.io/library/alpine
+      tag: "3.22"
+      pullPolicy: IfNotPresent
+    postgresql:
+      repository: docker.io/library/postgres
+      tag: "18.3-trixie"
+      pullPolicy: IfNotPresent
+    mysql:
+      repository: docker.io/library/mysql
+      tag: "8.4"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional key prefix inside the bucket
+    prefix: vaultwarden
+    # -- Create the bucket automatically when it does not exist yet
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    # -- Secret key name for the access key inside backup.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key name for the secret key inside backup.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key used when backup.s3.existingSecret is not set
+    accessKey: ""
+    # -- Inline secret key used when backup.s3.existingSecret is not set
+    secretKey: ""
+  database:
+    # -- Optional override for dump connectivity, mainly useful when app connection is provided only as an opaque secret.
+    host: ""
+    # -- Optional override port for dump connectivity
+    port: ""
+    # -- Optional override database name for dump connectivity
+    name: ""
+    # -- Optional override username for dump connectivity
+    username: ""
+    # -- Optional override password for dump connectivity
+    password: ""
+    # -- Existing secret with structured dump connectivity values when overrides are needed
+    existingSecret: ""
+    existingSecretHostKey: host
+    existingSecretPortKey: port
+    existingSecretNameKey: database
+    existingSecretUsernameKey: username
+    existingSecretPasswordKey: password
+    # -- Extra arguments passed to pg_dump
+    postgresDumpArgs: "--clean --if-exists"
+    # -- Extra arguments passed to mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# =============================================================================
+# Optional subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the PostgreSQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the MySQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
+
+
+## Gateway API configuration (GR-060)
+gateway:
+  enabled: false
+  hostnames: []
+  parentRefs: []
+  #   - name: my-gateway
+  #     namespace: default
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Merge
+  data: []
