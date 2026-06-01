@@ -1,0 +1,107 @@
+---
+# 1. 설정 및 DB 파일 저장을 위한 Longhorn PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filebrowser-config-pvc
+  labels:
+    app: filebrowser
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# 2. FileBrowser Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filebrowser
+  labels:
+    app: filebrowser
+  annotations:
+    diun.enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: filebrowser
+  template:
+    metadata:
+      labels:
+        app: filebrowser
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+      containers:
+        - name: filebrowser
+          image: filebrowser/filebrowser:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: data-volume
+              mountPath: /srv
+            - name: config-volume
+              mountPath: /database
+      volumes:
+        - name: data-volume
+          hostPath:
+            path: /data/filebrowser
+            type: DirectoryOrCreate
+        - name: config-volume
+          persistentVolumeClaim:
+            claimName: filebrowser-config-pvc
+
+---
+# 3. 내부 통신을 위한 ClusterIP Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: filebrowser-svc
+  labels:
+    app: filebrowser
+spec:
+  type: ClusterIP
+  selector:
+    app: filebrowser
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+
+---
+# 4. 외부 노출을 위한 Traefik Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: filebrowser-ingress
+  labels:
+    app: filebrowser
+  annotations:
+   cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+   traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+   traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: drive.junbeom.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: filebrowser-svc
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - drive.junbeom.work
+      secretName: filebrowser-tls-secret
