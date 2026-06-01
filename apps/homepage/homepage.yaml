@@ -11,6 +11,8 @@ metadata:
   namespace: apps
   labels:
     app: homepage
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   strategy:
@@ -22,6 +24,8 @@ spec:
     metadata:
       labels:
         app: homepage
+      annotations:
+        diun.enable: "true"
     spec:
       securityContext:
         runAsUser: 1000
@@ -30,6 +34,7 @@ spec:
       containers:
         - name: homepage
           image: ghcr.io/gethomepage/homepage:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 3000
