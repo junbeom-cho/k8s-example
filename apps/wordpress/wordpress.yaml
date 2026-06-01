@@ -41,6 +41,8 @@ kind: Deployment
 metadata:
   name: wordpress-app
   namespace: apps
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   strategy:
@@ -55,7 +57,8 @@ spec:
     spec:
       containers:
         - name: wordpress
-          image: wordpress:6-php8.2-apache
+          image: wordpress:6-php8.5-apache
+          imagePullPolicy: IfNotPresent
           env:
             - name: WORDPRESS_DB_HOST
               valueFrom:
@@ -86,6 +89,8 @@ spec:
             - name: php-config
               mountPath: /usr/local/etc/php/conf.d/custom-php.ini
               subPath: custom-php.ini
+            - name: wp-local-uploads
+              mountPath: /var/www/html/wp-content/uploads
       volumes:
         - name: wordpress-data
           persistentVolumeClaim:
@@ -93,6 +98,10 @@ spec:
         - name: php-config
           configMap:
             name: wp-php-config
+        - name: wp-local-uploads
+          hostPath:
+            path: /var/local/k3s-hostpath/wordpress-uploads
+            type: DirectoryOrCreate
 
 ---
 # Ingress
@@ -103,12 +112,12 @@ metadata:
   namespace: apps
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik
   rules:
-    - host: blog.junbeom.work
+    - host: www.junbeom.work
       http:
         paths:
           - path: /
@@ -120,5 +129,6 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - blog.junbeom.work
+        - www.junbeom.work
       secretName: wordpress-tls
+      
