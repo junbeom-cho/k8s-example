@@ -1,0 +1,198 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# changedetection.io Helm Chart - Default Values
+# =============================================================================
+# Focus: website change detection and monitoring with optional browser rendering
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- changedetection.io container image
+  repository: ghcr.io/dgtlmoon/changedetection.io
+  # -- Image tag
+  tag: "0.55.5"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# changedetection Configuration
+# =============================================================================
+
+changedetection:
+  # -- Application port
+  port: 5000
+  # -- Public base URL of the instance
+  baseUrl: "https://change.junbeom.work"
+  # -- Number of concurrent fetch workers
+  fetchWorkers: 10
+  # -- Minimum seconds between rechecks
+  minimumSecondsRecheckTime: ""
+  # -- Timezone
+  timezone: "Asia/Seoul"
+  # -- Container locale used for LANG and LC_ALL
+  locale: C
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Browser (optional Playwright for JavaScript rendering)
+# =============================================================================
+
+browser:
+  # -- Enable Playwright browser sidecar for JavaScript rendering
+  enabled: false
+  image:
+    # -- Playwright browser image
+    repository: ghcr.io/browserless/chromium
+    # -- Image tag
+    tag: "v2.46.0"
+    pullPolicy: IfNotPresent
+  # -- Resources for the browser container
+  resources: {}
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /datastore (SQLite + snapshots)
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: "longhorn"
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for changedetection
+  enabled: true
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts:
+    - host: change.junbeom.work
+      paths:
+        - path: /
+          pathType: Prefix
+    # - host: changedetection.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls:
+    - hosts:
+        - change.junbeom.work
+      secretName: changedetection-tls
+    # - hosts:
+    #     - changedetection.example.com
+    #   secretName: changedetection-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+podSecurityContext: {}
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
