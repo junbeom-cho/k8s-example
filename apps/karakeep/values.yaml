@@ -1,0 +1,274 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Karakeep Helm Chart - Default Values
+# =============================================================================
+# Focus: AI-powered bookmark manager with optional Meilisearch and Chromium sidecars
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Karakeep container image
+  repository: ghcr.io/karakeep-app/karakeep
+  # -- Image tag
+  tag: "0.32.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Karakeep Configuration
+# =============================================================================
+
+karakeep:
+  # -- Public URL of the Karakeep instance (e.g. https://karakeep.example.com)
+  nextAuthUrl: "https://karakeep.junbeom.work"
+  # -- Connect to the browser service only when crawling needs it
+  browserConnectOnDemand: true
+  # -- Existing secret containing nextauth-secret and meili-master-key
+  existingSecret: "karakeep-secret"
+  # -- Key in the existing secret for NEXTAUTH_SECRET
+  existingSecretNextAuthKey: nextauth-secret
+  # -- Key in the existing secret for MEILI_MASTER_KEY
+  existingSecretMeiliMasterKey: meili-master-key
+  # -- Extra environment variables for the main container
+  # -- @default -- `[]`
+  extraEnv:
+    - name: DISABLE_SIGNUPS
+      value: "true"
+# =============================================================================
+# Meilisearch Sidecar (optional full-text search)
+# =============================================================================
+
+meilisearch:
+  # -- Enable Meilisearch sidecar for full-text search
+  enabled: true
+  image:
+    # -- Meilisearch container image
+    repository: docker.io/getmeili/meilisearch
+    # -- Meilisearch image tag
+    tag: "v1.41.0"
+    pullPolicy: IfNotPresent
+  # -- Resources for the Meilisearch container
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+# =============================================================================
+# Chromium Sidecar (optional web page screenshots)
+# =============================================================================
+
+chromium:
+  # -- Enable Chromium sidecar for web page screenshots
+  enabled: true
+  # -- Internal Chromium sidecar HTTP port
+  port: 9222
+  image:
+    # -- Chromium container image
+    repository: ghcr.io/browserless/chromium
+    # -- Chromium image tag
+    tag: "v2.46.0"
+    pullPolicy: IfNotPresent
+  # -- Resources for the Chromium container
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for application data (SQLite + uploads)
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: "longhorn"
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Karakeep
+  enabled: true
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts:
+    - host: karakeep.junbeom.work
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - karakeep.junbeom.work
+      secretName: karakeep-tls
+    # - host: karakeep.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+    # - hosts:
+    #     - karakeep.example.com
+    #   secretName: karakeep-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute for Karakeep HTTP (requires Gateway API CRDs)
+  enabled: false
+  # -- Parent Gateway references. Leave empty to attach through controller defaults.
+  parentRefs: []
+  #   - name: shared-gateway
+  #     namespace: gateway-system
+  #     sectionName: https
+  # -- HTTPRoute hostnames
+  hostnames: []
+  #   - karakeep.example.com
+  # -- HTTPRoute path matches
+  paths:
+    - type: PathPrefix
+      value: /
+  # -- HTTPRoute annotations
+  annotations: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Karakeep auth/search secret.
+  # Requires karakeep.existingSecret to be set to prevent credential drift
+  # between the chart-managed Secret and the ExternalSecret.
+  enabled: false
+  # -- ExternalSecret apiVersion
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore or ClusterSecretStore
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target Secret creation policy
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to Karakeep Secret keys.
+  data: []
+  #   - secretKey: nextauth-secret
+  #     remoteRef:
+  #       key: karakeep/credentials
+  #       property: nextauth-secret
+  #   - secretKey: meili-master-key
+  #     remoteRef:
+  #       key: karakeep/credentials
+  #       property: meili-master-key
+  # -- ExternalSecret annotations
+  annotations: {}
