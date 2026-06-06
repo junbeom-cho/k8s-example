@@ -1,0 +1,57 @@
+container_runtime: containerd
+
+agent:
+  acquisition:
+    - namespace: core-infra
+      podName: traefik-*
+      program: traefik
+  env:
+    - name: COLLECTIONS
+      value: "crowdsecurity/traefik crowdsecurity/base-http-scenarios"
+
+lapi:
+  env:
+    - name: ENROLL_KEY
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: ENROLL_KEY
+    - name: ENROLL_INSTANCE_NAME
+      value: "my-k3s-cluster"
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: DB_PASSWORD
+    - name: BOUNCER_KEY
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: BOUNCER_API_KEY
+
+config:
+  config.yaml.local: |
+    api:
+      server:
+        auto_registration:
+          enabled: true
+          token: "${REGISTRATION_TOKEN}"
+          allowed_ranges:
+            - "127.0.0.1/32"
+            - "10.0.0.0/8"
+            - "172.16.0.0/12"
+            - "192.168.0.0/16"
+        
+    db_config:
+      type: postgresql
+      user: crowdsec_user
+      password: ${DB_PASSWORD}
+      db_name: crowdsec_db
+      host: postgres.database.svc.cluster.local
+      port: 5432
+      flush:
+        bouncers_autodelete:
+          api_key: 1h
+        agents_autodelete:
+          login_password: 6h
+          cert: 6h
