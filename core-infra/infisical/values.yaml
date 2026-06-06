@@ -56,10 +56,12 @@ infisical:
   fullnameOverride: "infisical"
   # -- Custom annotations for Infisical pods
   podAnnotations:
-    diun.enable: "true"
+    diun.enabled: "true"
+    secrets.infisical.com/auto-reload: "true"
   # -- Custom annotations for Infisical deployment
   deploymentAnnotations:
-    diun.enable: "true"
+    diun.enabled: "true"
+    secrets.infisical.com/auto-reload: "true"
   # -- Number of pod replicas for high availability
   replicaCount: 1
 
