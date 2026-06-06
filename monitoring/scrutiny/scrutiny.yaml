@@ -27,6 +27,8 @@ metadata:
   namespace: monitoring
   labels:
     app: scrutiny
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   strategy:
@@ -42,7 +44,7 @@ spec:
       containers:
         - name: scrutiny
           image: ghcr.io/analogj/scrutiny:master-omnibus
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
             runAsUser: 0
@@ -109,7 +111,7 @@ metadata:
   namespace: monitoring
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    traefik.ingress.kubernetes.io/router.middlewares: "monitoring-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: "traefik"

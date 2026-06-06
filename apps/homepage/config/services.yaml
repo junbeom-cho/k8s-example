@@ -14,10 +14,10 @@
         href: https://n8n.junbeom.work/
         description: 워크플로우 자동화 도구
         icon: n8n.svg
-    - Open-WebUI:
-        href: https://ai.junbeom.work/
-        description: AI 챗 인터페이스
-        icon: open-webui.svg
+    - ChangeDetection:
+        href: https://change.junbeom.work/
+        description: 웹사이트 변경 감지 도구
+        icon: changedetection.svg
 
 - Apps - 생산성 및 도구:
     - VaultWarden:
@@ -48,12 +48,20 @@
         href: https://www.junbeom.work/
         description: 블로그 플랫폼
         icon: wordpress.svg
+    - Karakeep:
+        href: https://karakeep.junbeom.work/
+        description: 북마크 관리자
+        icon: karakeep.svg
 
 - Core Infrastructure:
     - Longhorn:
         href: https://longhorn.junbeom.work/
         description: 클라우드 네이티브 분산 블록 스토리지
         icon: longhorn.svg
+    - Infisical:
+        href: https://infisical.junbeom.work/
+        description: 비밀 관리 도구
+        icon: infisical.svg
 
 - Monitoring:
     - Scrutiny:

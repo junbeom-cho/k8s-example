@@ -101,7 +101,7 @@ smtp:
   host: "smtp.resend.com"
   port: 587
   from: "vaultwarden@junbeom.work"
-  fromName: "Vaultwarden <"
+  fromName: "Vaultwarden"
   # -- SMTP connection timeout in seconds
   timeout: 15
   security: starttls
@@ -197,7 +197,7 @@ service:
   # -- HTTP service port
   port: 80
   # -- Container port exposed by Vaultwarden
-  targetPort: 80
+  targetPort: 8080
   # -- Set the ipFamilyPolicy for dual-stack (GR-058)
   ipFamilyPolicy: ''
   # -- Set the ipFamilies for dual-stack
@@ -217,7 +217,7 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
     # cert-manager.io/cluster-issuer: letsencrypt
   # -- Ingress hosts
   hosts:
@@ -301,8 +301,12 @@ priorityClassName: ""
 terminationGracePeriodSeconds: 60
 
 podLabels: {}
-podAnnotations: {}
-annotations: {}
+podAnnotations:
+  diun.enabled: "true"
+  secrets.infisical.com/auto-reload: "true"
+annotations:
+  diun.enabled: "true"
+  secrets.infisical.com/auto-reload: "true"
 
 # =============================================================================
 # Network Policy

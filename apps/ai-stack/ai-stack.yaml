@@ -21,6 +21,8 @@ metadata:
   namespace: apps
   labels:
     app: ollama
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   selector:
@@ -34,6 +36,7 @@ spec:
       containers:
         - name: ollama
           image: docker.io/ollama/ollama:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 11434
               name: ollama-port
@@ -74,6 +77,8 @@ metadata:
   namespace: apps
   labels:
     app: open-webui
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   selector:
@@ -87,6 +92,7 @@ spec:
       containers:
         - name: open-webui
           image: ghcr.io/open-webui/open-webui:main
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

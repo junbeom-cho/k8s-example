@@ -5,7 +5,7 @@
 # Focus: AI-powered bookmark manager with optional Meilisearch and Chromium sidecars
 
 nameOverride: ""
-fullnameOverride: ""
+fullnameOverride: "karakeep"
 commonLabels: {}
 
 # =============================================================================
@@ -137,7 +137,7 @@ ingress:
   ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     # cert-manager.io/cluster-issuer: letsencrypt
   # -- Ingress hosts

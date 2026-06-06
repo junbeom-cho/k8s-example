@@ -80,7 +80,7 @@ metadata:
     app: it-tools
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik

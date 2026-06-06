@@ -1,11 +1,11 @@
 # ==================================================
 # PersistentVolumeClaim (Longhorn)
-# 설정 DB 및 커스텀 이미지를 안전하게 관리할 볼륨
+# 통합 설정/이미지 관리용 단일 PVC
 # ==================================================
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pingvin-backend-config-pvc
+  name: pingvin-share-pvc
   namespace: apps
 spec:
   accessModes:
@@ -13,21 +13,7 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      storage: 1Gi # DB 및 설정 파일용이므로 1GB면 충분합니다.
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: pingvin-frontend-images-pvc
-  namespace: apps
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 500Mi # 로고/파비콘 등 커스텀 이미지용
+      storage: 500Gi
 
 ---
 # ==================================================
@@ -53,6 +39,8 @@ kind: Deployment
 metadata:
   name: clamav
   namespace: apps
+  annotations:
+    diun.enable: "true"
 spec:
   replicas: 1
   selector:
@@ -66,13 +54,7 @@ spec:
       containers:
         - name: clamav
           image: clamav/clamav:latest
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "100m"
-            limits:
-              memory: "1Gi"
-              cpu: "1.0"
+          imagePullPolicy: Always
           ports:
             - containerPort: 3310
           livenessProbe:
@@ -88,7 +70,7 @@ spec:
 
 ---
 # ==================================================
-# Pingvin Share X (Service & Deployment)
+# Pingvin Share X Service (ClusterIP)
 # ==================================================
 apiVersion: v1
 kind: Service
@@ -96,18 +78,21 @@ metadata:
   name: pingvin-share-x
   namespace: apps
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: pingvin-share-x
   ports:
     - name: frontend
-      port: 13005
+      port: 3000
       targetPort: 3000
     - name: backend
-      port: 13006
+      port: 8080
       targetPort: 8080
 
 ---
+# ==================================================
+# Pingvin Share X Deployment
+# ==================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -126,18 +111,12 @@ spec:
       containers:
         - name: pingvin-share-x
           image: smp46/pingvin-share-x:latest
+          imagePullPolicy: Always
           env:
             - name: TRUST_PROXY
               value: "true"
             - name: CLAMAV_HOST
               value: "clamav"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "1Gi"
-              cpu: "1.0"
           ports:
             - containerPort: 3000
             - containerPort: 8080
@@ -154,23 +133,57 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           volumeMounts:
-            # 1. DB/설정 디렉터리 (Longhorn 마운트)
-            - name: backend-config
+            - name: pingvin-pvc
               mountPath: /opt/app/backend/data
-            # 2. 실제 공유 파일 업로드 디렉터리 (hostPath 중첩 마운트)
+              subPath: backend-data
+            
             - name: backend-uploads
               mountPath: /opt/app/backend/data/uploads
-            # 3. 커스텀 이미지 저장소 (Longhorn 마운트)
-            - name: frontend-images
+            
+            - name: pingvin-pvc
               mountPath: /opt/app/frontend/public/img
+              subPath: frontend-images
       volumes:
-        - name: backend-config
+        - name: pingvin-pvc
           persistentVolumeClaim:
-            claimName: pingvin-backend-config-pvc
-        - name: frontend-images
-          persistentVolumeClaim:
-            claimName: pingvin-frontend-images-pvc
+            claimName: pingvin-share-pvc
         - name: backend-uploads
           hostPath:
-            path: /opt/data/pingvin-share-x/uploads
+            path: /var/local/k3s-hostpath/pingvin-share-x/uploads
             type: DirectoryOrCreate
+
+---
+# ==================================================
+# Ingress (k3s Traefik 기반)
+# ==================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pingvin-share-x-ingress
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  rules:
+    - host: pingvin.junbeom.work
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: pingvin-share-x
+                port:
+                  name: backend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pingvin-share-x
+                port:
+                  name: frontend
+  tls:
+    - hosts:
+        - pingvin.junbeom.work
+      secretName: pingvin-share-x-tls

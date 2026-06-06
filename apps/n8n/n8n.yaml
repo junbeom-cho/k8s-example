@@ -133,7 +133,7 @@ metadata:
   namespace: apps
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik
@@ -148,3 +148,7 @@ spec:
                 name: n8n-svc
                 port:
                   number: 5678
+  tls:
+    - hosts:
+      - n8n.junbeom.work
+      secretName: n8n-tls

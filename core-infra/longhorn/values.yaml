@@ -2,6 +2,10 @@
 # Longhorn Helm Chart Values
 # ================================================
 
+global:
+  timezone: "Asia/Seoul"
+
+
 persistence:
   defaultClassReplicaCount: 1
   reclaimPolicy: Retain 
@@ -24,7 +28,12 @@ longhornUI:
 ingress:
   enabled: true
   ingressClassName: "traefik" 
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
   host: "longhorn.junbeom.work"
   path: /
   pathType: Prefix
+  tls: true
   

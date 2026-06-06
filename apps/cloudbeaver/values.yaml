@@ -3,13 +3,19 @@
 # https://artifacthub.io/packages/helm/avisto/cloudbeaver
 # ====================================================================
 
+podAnnotations:
+  diun.enable: "true"
+
+annotations:
+  diun.enable: "true"
+
 image:
   registry: docker.io
   repository: dbeaver/cloudbeaver
   tag: "26"
   digest: ""
   
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 livenessProbe:
   enabled: true
@@ -37,7 +43,7 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: "apps-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "core-infra-cloudflare-only@kubernetescrd"
   tls: true
  
 persistence:

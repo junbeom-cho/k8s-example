@@ -5,6 +5,8 @@
 crds:
   enabled: true
 
+clusterResourceNamespace: core-infra
+
 replicaCount: 1
 
 extraArgs:
