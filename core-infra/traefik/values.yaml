@@ -27,8 +27,8 @@ ports:
           to: websecure
           scheme: https
           permanent: true
-      #middleware:
-      #  - core-infra-crowdsec-bouncer@kubernetescrd
+      middlewares:
+        - core-infra-crowdsec-bouncer@kubernetescrd
     forwardedHeaders:
       trustedIPs: &cloudflareIPs
         - 173.245.48.0/20
@@ -54,8 +54,8 @@ ports:
     expose:
       default: true
     http:
-    #  middlewares:
-    #    - core-infra-crowdsec-bouncer@kubernetescrd
+      middlewares:
+        - core-infra-crowdsec-bouncer@kubernetescrd
     exposedPort: 443
     forwardedHeaders:
       trustedIPs: *cloudflareIPs
@@ -85,8 +85,8 @@ logs:
   access:
     enabled: true
 
-#experimental:
-#  plugins:
-#    crowdsec-bouncer:
-#      moduleName: "github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
-#      version: "v1.6.0"
+experimental:
+  plugins:
+    crowdsec-bouncer:
+      moduleName: "github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+      version: "v1.6.0"

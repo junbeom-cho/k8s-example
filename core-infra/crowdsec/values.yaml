@@ -30,6 +30,16 @@ lapi:
           key: BOUNCER_API_KEY
 
 config:
+  parsers:
+    s02-enrich:
+      local-ip-allowlist.yaml: |
+        name: local/trusted-ip-allowlist
+        description: "Allowlist trusted external IPs"
+        whitelist:
+          reason: "trusted external IP"
+          ip:
+            - "182.226.213.170"
+
   config.yaml.local: |
     api:
       server:
