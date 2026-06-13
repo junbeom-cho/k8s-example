@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: infisical-auth-token
+  namespace: infisical
+type: Opaque
+stringData:
+  clientId: "your-client-id"
+  clientSecret: "your-client-secret"
