@@ -1,0 +1,479 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Vaultwarden Helm Chart - Default Values
+# =============================================================================
+# Focus: sqlite + pvc + ingress + smtp
+
+nameOverride: ""
+fullnameOverride: "vaultwarden"
+commonLabels: {}
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Vaultwarden image repository
+  repository: docker.io/vaultwarden/server
+  # -- Vaultwarden image tag
+  tag: "1.36.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Core Settings
+# =============================================================================
+
+# -- Public domain used by Vaultwarden. Strongly recommended when ingress is enabled.
+domain: "vault.techbara.dev"
+
+vaultwarden:
+  # -- Allow new user signups
+  signupsAllowed: false
+  # -- Require email verification for new signups
+  signupsVerify: true
+  # -- Seconds before another signup verification email can be sent
+  signupsVerifyResendTime: 3600
+  # -- Maximum number of signup verification re-sends triggered by login attempts
+  signupsVerifyResendLimit: 6
+  # -- Domain allowlist for signups when signupsAllowed is false
+  signupsDomainsWhitelist: []
+    # - example.com
+    # - example.org
+  # -- Allow invitation flows
+  invitationsAllowed: true
+  # -- Name used in invitation emails that do not belong to a specific organization
+  invitationOrgName: Vaultwarden
+  # -- Hours before invite and verification tokens expire
+  invitationExpirationHours: 120
+  # -- Allow Bitwarden Send
+  sendsAllowed: true
+  # -- Allow emergency access features
+  emergencyAccessAllowed: true
+  # -- Allow users to change their email addresses
+  emailChangeAllowed: true
+  # -- Enable organization event logging
+  orgEventsEnabled: false
+  # -- Which users may create organizations: "", "all", "none", or comma-separated emails
+  orgCreationUsers: ""
+  # -- Default number of server-side password hashing iterations
+  passwordIterations: 600000
+  # -- Allow users to set and view password hints
+  passwordHintsAllowed: false
+  # -- Show password hints directly on the login page when SMTP is unavailable
+  showPasswordHint: false
+  websocket:
+    # -- Enable websocket notifications
+    enabled: true
+  # -- Vaultwarden log level
+  logLevel: info
+  proxy:
+    # -- Header used by Vaultwarden to identify the client IP behind a reverse proxy
+    ipHeader: X-Real-IP
+
+# =============================================================================
+# Admin
+# =============================================================================
+
+admin:
+  # -- Admin token value. Prefer an Argon2 PHC string for production.
+  # -- Example with the container image:
+  # --   docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
+  # -- Example with the argon2 CLI:
+  # --   echo -n 'change-me' | argon2 "$(openssl rand -base64 32)" -e -id -k 65540 -t 3 -p 4
+  # -- Official reference:
+  # --   https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+  token: ""
+  # -- Existing secret containing the admin token
+  existingSecret: "vaultwarden-secret"
+  # -- Secret key for the admin token in admin.existingSecret
+  existingSecretTokenKey: ADMIN_TOKEN
+
+# =============================================================================
+# SMTP
+# =============================================================================
+
+smtp:
+  # -- Enable SMTP configuration
+  enabled: true
+  host: "smtp-relay.brevo.com"
+  port: 587
+  from: "vaultwarden@techbara.dev"
+  fromName: "Vaultwarden"
+  # -- SMTP connection timeout in seconds
+  timeout: 15
+  security: starttls
+  username: "ac3420001@smtp-brevo.com"
+  password: ""
+  # -- Comma-separated SMTP auth mechanisms, for example: Plain,Login
+  authMechanism: ""
+  # -- Optional HELO name sent to the SMTP server
+  heloName: ""
+  # -- Embed images as email attachments
+  embedImages: true
+  # -- Enable verbose SMTP troubleshooting logs
+  debug: false
+  # -- Accept invalid SMTP certificates. Dangerous and not recommended.
+  acceptInvalidCerts: false
+  # -- Accept invalid SMTP hostnames. Dangerous and not recommended.
+  acceptInvalidHostnames: false
+  # -- Existing secret containing the SMTP password
+  existingSecret: "brevo-secret"
+  # -- Secret key for the SMTP password in smtp.existingSecret
+  existingSecretPasswordKey: SMTP_PASSWORD
+
+# =============================================================================
+# Database and Persistence
+# =============================================================================
+
+database:
+  # -- Database mode selection: auto | sqlite | external | postgresql | mysql
+  # -- In auto mode the chart uses this precedence:
+  # -- 1. database.external.host
+  # --    or database.external.existingSecret
+  # -- 2. postgresql.enabled
+  # -- 3. mysql.enabled
+  # -- 4. sqlite fallback
+  mode: external
+  sqlite:
+    # -- Enable SQLite WAL mode on startup. Review the official guidance before changing this.
+    enableWal: false
+  connection:
+    # -- Number of retries while connecting to the database on startup. Use 0 for infinite retries.
+    retries: 15
+    # -- Timeout in seconds when acquiring a database connection
+    timeout: 30
+    # -- Timeout in seconds before idle database connections are closed
+    idleTimeout: 600
+    # -- Minimum number of database connections in the pool
+    minConnections: 2
+    # -- Maximum number of database connections in the pool
+    maxConnections: 10
+    # -- Optional initialization SQL run for each new database connection
+    init: ""
+  external:
+    # -- External database vendor: postgres | mysql
+    vendor: postgres
+    host: "postgres.database.svc.cluster.local"
+    port: "5432"
+    name: vaultwarden
+    username: vaultwarden
+    # -- Password used to build DATABASE_URL when database.external.existingSecret is not used
+    password: ""
+    # -- Existing secret containing a complete DATABASE_URL value
+    existingSecret: "vaultwarden-secret"
+    # -- Secret key for the DATABASE_URL value in database.external.existingSecret
+    existingSecretUrlKey: DATABASE_URL
+    # -- Optional query string appended to the generated DATABASE_URL, without the leading '?'
+    parameters: ""
+
+data:
+  persistence:
+    # -- Persist `/data` with a PVC
+    enabled: true
+    # -- Existing PVC name
+    existingClaim: ""
+    # -- Optional selector labels for pre-existing PV matching. Useful for restore or pre-bound storage flows.
+    selectorLabels: {}
+      # restore-id: vaultwarden-prod-2026-03-20
+    # -- Storage class for the PVC
+    storageClass: ""
+    # -- Access mode for the PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the PVC
+    size: 2Gi
+    # -- Annotations added to the PVC
+    annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Container port exposed by Vaultwarden
+  targetPort: 8080
+  # -- Set the ipFamilyPolicy for dual-stack (GR-058)
+  ipFamilyPolicy: ''
+  # -- Set the ipFamilies for dual-stack
+  ipFamilies: []
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Vaultwarden
+  enabled: true
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts:
+    - host: vault.techbara.dev
+      paths:
+        - path: /
+          pathType: Prefix
+    # - host: vaultwarden.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls:
+    - hosts:
+        - vault.techbara.dev
+      secretName: vaultwarden-tls
+    # - hosts:
+    #     - vaultwarden.example.com
+    #   secretName: vaultwarden-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  liveness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readiness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  startup:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+podLabels: {}
+podAnnotations:
+  diun.enabled: "true"
+  secrets.infisical.com/auto-reload: "true"
+annotations:
+  diun.enabled: "true"
+  secrets.infisical.com/auto-reload: "true"
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable a NetworkPolicy for Vaultwarden
+  enabled: false
+  ingress:
+    # -- Allow traffic from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress peers in native NetworkPolicy format
+    additionalFrom: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: ingress-system
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: traefik
+  egress:
+    # -- Enable egress policy management
+    enabled: false
+    # -- Allow DNS egress for name resolution when egress policy is enabled
+    allowDns: true
+    # -- Additional egress peers in native NetworkPolicy format
+    additionalTo: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: database
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: postgresql
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob support
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 0 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained by the CronJob
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained by the CronJob
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix used in generated backup archive names
+  archivePrefix: vaultwarden
+  # -- Resources applied to the backup uploader and dump/archive init container
+  resources: {}
+  images:
+    uploader:
+      repository: docker.io/helmforge/mc
+      tag: "1.0.0"
+      pullPolicy: IfNotPresent
+    sqlite:
+      repository: docker.io/library/alpine
+      tag: "3.22"
+      pullPolicy: IfNotPresent
+    postgresql:
+      repository: docker.io/library/postgres
+      tag: "18.3-trixie"
+      pullPolicy: IfNotPresent
+    mysql:
+      repository: docker.io/library/mysql
+      tag: "8.4"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional key prefix inside the bucket
+    prefix: vaultwarden
+    # -- Create the bucket automatically when it does not exist yet
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    # -- Secret key name for the access key inside backup.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key name for the secret key inside backup.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key used when backup.s3.existingSecret is not set
+    accessKey: ""
+    # -- Inline secret key used when backup.s3.existingSecret is not set
+    secretKey: ""
+  database:
+    # -- Optional override for dump connectivity, mainly useful when app connection is provided only as an opaque secret.
+    host: ""
+    # -- Optional override port for dump connectivity
+    port: ""
+    # -- Optional override database name for dump connectivity
+    name: ""
+    # -- Optional override username for dump connectivity
+    username: ""
+    # -- Optional override password for dump connectivity
+    password: ""
+    # -- Existing secret with structured dump connectivity values when overrides are needed
+    existingSecret: ""
+    existingSecretHostKey: host
+    existingSecretPortKey: port
+    existingSecretNameKey: database
+    existingSecretUsernameKey: username
+    existingSecretPasswordKey: password
+    # -- Extra arguments passed to pg_dump
+    postgresDumpArgs: "--clean --if-exists"
+    # -- Extra arguments passed to mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv:
+  - name: EXPERIMENTAL_CLIENT_FEATURE_FLAGS
+    value: "ssh-key-vault-item, ssh-agent"
+extraVolumes: []
+extraVolumeMounts: []
+
+# =============================================================================
+# Optional subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the PostgreSQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the MySQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
+
+
+## Gateway API configuration (GR-060)
+gateway:
+  enabled: false
+  hostnames: []
+  parentRefs: []
+  #   - name: my-gateway
+  #     namespace: default
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Merge
+  data: []
