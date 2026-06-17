@@ -1,0 +1,721 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# WordPress Helm Chart
+# =============================================================================
+# Uses the official wordpress Docker image (Apache variant).
+# Supports MySQL subchart or external MySQL/MariaDB database.
+# https://wordpress.org/documentation/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: "wordpress"
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# -- Number of WordPress replicas. Keep 1 unless uploads/themes/plugins are backed by ReadWriteMany storage or an external object-storage strategy.
+replicaCount: 1
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: docker.io/library/wordpress
+  # -- Container image tag
+  tag: "7.0.0-apache"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# WordPress Configuration
+# =============================================================================
+
+wordpress:
+  # -- Full external URL of the site (auto-detected from ingress if empty)
+  # Examples: "https://blog.example.com", "http://localhost:8080"
+  siteUrl: "https://www.techbara.dev"
+
+  # -- Site title shown in the admin and browser tab
+  siteTitle: "WordPress"
+
+  # -- Admin username for initial setup
+  adminUser: junbeom-cho
+
+  # -- Admin password (auto-generated if empty and no existingSecret)
+  adminPassword: ""
+
+  # -- Admin email address
+  adminEmail: wordpress@techbara.dev
+
+  # -- Database table prefix
+  tablePrefix: "wp_"
+
+  # -- Enable WordPress debug mode (WP_DEBUG)
+  debug: false
+
+  # -- Force SSL for the WordPress admin area (FORCE_SSL_ADMIN)
+  forceSSLAdmin: false
+
+  # -- Disable the built-in theme/plugin editor from wp-admin (DISALLOW_FILE_EDIT)
+  disallowFileEdit: false
+
+  # -- Disable WordPress pseudo-cron. Pair with wpCron.cronJob.enabled for scheduled execution.
+  disableWpCron: false
+
+  # -- WordPress frontend memory limit (WP_MEMORY_LIMIT)
+  memoryLimit: ""
+
+  # -- WordPress admin memory limit (WP_MAX_MEMORY_LIMIT)
+  maxMemoryLimit: ""
+
+  # -- Extra PHP code injected into wp-config.php via WORDPRESS_CONFIG_EXTRA
+  # configExtra: |
+  #   define('WP_MEMORY_LIMIT', '256M');
+  #   define('WP_POST_REVISIONS', 5);
+  configExtra: ""
+
+  # -- Additional environment variables for the WordPress container
+  # extraEnv:
+  #   - name: PHP_MEMORY_LIMIT
+  #     value: "256M"
+  extraEnv:
+    - name: TZ
+      value: "Asia/Seoul"
+
+  # -- Additional envFrom sources for the WordPress container
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: wordpress-extra-env
+  extraEnvFrom: []
+
+# =============================================================================
+# Admin Credentials
+# =============================================================================
+
+admin:
+  # -- Use an existing secret for admin credentials
+  existingSecret: "wordpress-secret"
+
+  # -- Key in the existing secret for the admin password
+  existingSecretPasswordKey: ADMIN_PASSWORD
+
+# =============================================================================
+# Database
+# =============================================================================
+# WordPress requires MySQL or MariaDB.
+#
+# Mode detection (when mode is auto):
+# 1. database.external.host or database.external.existingSecret -> external
+# 2. mysql.enabled -> MySQL subchart
+# 3. Fail - WordPress cannot run without a database
+# =============================================================================
+
+database:
+  # -- Database mode: auto | external | mysql
+  mode: external
+
+  external:
+    # -- External database hostname
+    host: "mariadb.database.svc.cluster.local"
+
+    # -- External database port
+    port: 3306
+
+    # -- Database name
+    name: wordpress_db
+
+    # -- Database username
+    username: wordpress_user
+
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+
+    # -- Existing secret for the database password
+    existingSecret: "wordpress-secret"
+
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: DATABASE_PASSWORD
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+# When mysql.enabled is true and database.mode is auto or mysql, the chart
+# deploys a MySQL instance as a subchart dependency.
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: false
+
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: wordpress
+    # -- Database username created on first run
+    username: wordpress
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /var/www/html
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: "longhorn"
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 5Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the WordPress container
+resources: {}
+  # requests:
+  #   cpu: 250m
+  #   memory: 256Mi
+  # limits:
+  #   cpu: "1"
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-admin/install.php
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-login.php
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-login.php
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 80
+
+  # -- Annotations for the service
+  annotations: {}
+
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+
+  # -- Ordered Service IP families: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for WordPress
+  enabled: true
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: "traefik"
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: blog.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts:
+    - host: www.techbara.dev
+      paths:
+        - path: /
+          pathType: Prefix
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: wordpress-tls
+  #     hosts:
+  #       - blog.example.com
+  tls:
+    - secretName: wordpress-tls
+      hosts:
+        - www.techbara.dev
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Create an HTTPRoute. Requires Gateway API CRDs and an existing Gateway.
+  enabled: false
+  # -- API version for HTTPRoute
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Parent Gateway references
+  parentRefs: []
+    # - name: public
+    #   namespace: gateway-system
+    #   sectionName: https
+  # -- Optional HTTPRoute hostnames
+  hostnames: []
+    # - wordpress.example.com
+  # -- Path matches routed to WordPress
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+  # -- Mount the ServiceAccount token into workload pods. Keep false unless an extension needs Kubernetes API access.
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler. Only use with shared uploads/storage or another replicated content strategy.
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: ""
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+# =============================================================================
+# WordPress Cron
+# =============================================================================
+
+wpCron:
+  cronJob:
+    # -- Create a Kubernetes CronJob that calls wp-cron.php through the internal Service.
+    enabled: false
+    schedule: "*/5 * * * *"
+    suspend: false
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    backoffLimit: 1
+    image:
+      repository: docker.io/curlimages/curl
+      tag: "8.17.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+
+# =============================================================================
+# Plugins and Object Cache
+# =============================================================================
+
+plugins:
+  # -- Run an idempotent post-install/post-upgrade Job to install and activate WordPress plugins.
+  enabled: false
+  installer:
+    # -- Create the plugin installer Job.
+    enabled: false
+    # -- Hook annotations make the Job run after install/upgrade and avoid rerunning unless the release changes.
+    useHelmHooks: true
+    hookWeight: "10"
+    # -- WordPress CLI image used by the installer Job.
+    image:
+      repository: docker.io/library/wordpress
+      tag: cli-php8.3
+      pullPolicy: IfNotPresent
+    backoffLimit: 1
+    activeDeadlineSeconds: 60
+    ttlSecondsAfterFinished: 300
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 33
+      runAsGroup: 33
+    # -- Prefer scheduling the Job on nodes already running WordPress pods. Useful with ReadWriteOnce PVCs.
+    preferWordPressPodNode: true
+  # -- Official WordPress.org plugin list. Use the plugin directory slug from wordpress.org/plugins.
+  items: []
+    # - slug: classic-editor
+    #   activate: true
+    #   skipIfInstalled: true
+
+objectCache:
+  # -- Enable WordPress persistent object cache integration.
+  enabled: false
+  provider: redis-cache
+  # -- Install/activate the Redis Object Cache plugin and enable the object-cache.php drop-in.
+  installPlugin: true
+  enableDropIn: true
+  redis:
+    # -- Redis mode: subchart or external.
+    mode: subchart
+    subchart:
+      # -- Deploy HelmForge Redis as a subchart when objectCache.enabled=true.
+      enabled: false
+    external:
+      host: ""
+    port: 6379
+    database: 0
+    prefix: ""
+    client: predis
+    scheme: tcp
+    maxTtl: ""
+    auth:
+      enabled: true
+      password: ""
+      existingSecret: ""
+      existingSecretPasswordKey: redis-password
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for WordPress pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules
+    extraFrom: []
+  metrics:
+    # -- Allow metrics scraping through NetworkPolicy when metrics.enabled=true
+    enabled: false
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    # -- Add egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress to kube-dns/CoreDNS
+    allowDNS: true
+    # -- Allow TCP egress to database pods in the same namespace
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 3306
+    # -- Allow HTTPS egress for updates, plugin/theme downloads, APIs, and object storage endpoints
+    allowHTTPS: false
+    # -- Allow SMTP egress when a mail plugin or SMTP configuration needs it
+    allowSMTP: false
+    smtpPort: 587
+    # -- Additional egress "to" rules
+    extraTo: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion. Use external-secrets.io/v1 for current ESO releases.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval for ExternalSecret resources.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  admin:
+    # -- Manage the WordPress admin Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-admin.
+    targetName: ""
+    passwordRemoteRef: {}
+      # key: prod/wordpress
+      # property: admin-password
+  database:
+    # -- Manage the WordPress external database Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-database.
+    targetName: ""
+    passwordRemoteRef: {}
+      # key: prod/wordpress
+      # property: database-password
+  backup:
+    # -- Manage the WordPress backup S3 Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-backup.
+    targetName: ""
+    accessKeyRemoteRef: {}
+      # key: prod/wordpress-backup
+      # property: access-key
+    secretKeyRemoteRef: {}
+      # key: prod/wordpress-backup
+      # property: secret-key
+
+# =============================================================================
+# Metrics (Apache Exporter)
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics via apache-exporter sidecar
+  enabled: false
+
+  image:
+    # -- apache-exporter image repository
+    repository: docker.io/lusotycoon/apache-exporter
+    # -- apache-exporter image tag
+    tag: v1.0.8
+    # -- apache-exporter pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Port for the Prometheus metrics endpoint
+  port: 9117
+
+  # -- ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource
+    enabled: false
+    # -- Scrape interval
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor
+    labels: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Follows the vaultwarden backup pattern: a CronJob creates a database dump
+# and archives wp-content, then uploads both to S3-compatible storage using
+# the MinIO client.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 18 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: wordpress
+
+  images:
+    # -- Image used for mysqldump (must have mysqldump binary)
+    worker: docker.io/library/mysql:8.4
+    # -- Image used for file archiving (must have tar)
+    archiver: docker.io/library/alpine:3.22
+    # -- Image used for S3 upload (MinIO client)
+    uploader: docker.io/helmforge/mc:1.0.0
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: "http://minio.minio.svc.cluster.local:9000"
+
+    # -- Target bucket name
+    bucket: "techbara-wordpress-backup"
+
+    # -- Key prefix within the bucket
+    prefix: wordpress
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: "minio-secret"
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: ROOT_USER
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: ROOT_PASSWORD
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Override database password for backup
+    password: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for mysqldump
+    mysqldumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# PHP Configuration
+# =============================================================================
+
+php:
+  # -- Custom php.ini settings injected via ConfigMap
+  # ini: |
+  #   upload_max_filesize = 64M
+  #   post_max_size = 64M
+  #   memory_limit = 256M
+  #   max_execution_time = 300
+  ini: ""
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the WordPress container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Additional init containers appended after wait-for-db
+extraInitContainers: []
+
+# -- Additional containers appended after WordPress and metrics containers
+extraContainers: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
