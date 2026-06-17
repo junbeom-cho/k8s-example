@@ -1,0 +1,76 @@
+# ==========================================================
+# kube-prometheus-stack Helm Chart Values
+# ==========================================================
+
+fullnameOverride: "grafana"
+
+
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+grafana:
+  admin:
+    existingSecret: grafana-secret
+    userKey: "ADMIN_USER"
+    passwordKey: "ADMIN_PASSWORD"
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    type: pvc
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  ingress:
+    enabled: true
+    ingressClassName: "traefik"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+      traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    hosts:
+      - grafana.techbara.dev
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls-secret
+        hosts:
+          - grafana.techbara.dev
+    grafana.ini:
+      server:
+        domain: grafana.techbara.dev
+        root_url: https://grafana.techbara.dev
+        serve_from_sub_path: false
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+prometheus-node-exporter:
+  service:
+    port: 9101
+    targetPort: 9101
