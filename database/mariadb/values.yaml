@@ -1,0 +1,42 @@
+# ====================================================================
+# MariaDB Helm Chart Values
+# https://artifacthub.io/packages/helm/bitnami/mariadb
+# ====================================================================
+
+architecture: standalone
+
+fullnameOverride: "mariadb"
+
+image:
+  registry: registry-1.docker.io
+  repository: bitnami/mariadb
+  tag: latest
+  pullPolicy: IfNotPresent
+
+auth:
+  database: "homelab_main"
+  existingSecret: "mariadb-secret"
+  usePasswordFiles: true
+
+primary:
+  extraEnvVars:
+    - name: TZ
+      value: "Asia/Seoul"
+
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 15Gi
+    storageClass: "longhorn"
+
+  resourcesPreset: "none"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
