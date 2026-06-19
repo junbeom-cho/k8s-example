@@ -1,0 +1,57 @@
+# ====================================================================
+# Cloudbeaver Helm Chart Values
+# https://artifacthub.io/packages/helm/avisto/cloudbeaver
+# ====================================================================
+
+fullnameOverride: "cloudbeaver"
+
+image:
+  registry: docker.io
+  repository: dbeaver/cloudbeaver
+  tag: 26.1.0
+  digest: ""
+  pullPolicy: IfNotPresent
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 5
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 5
+
+hostname: "beaver.techbara.dev"
+
+ingress:
+  enabled: true
+  ingressClassName: "traefik"
+  pathType: Prefix
+  hostname: "beaver.techbara.dev"
+  path: "/"
+
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+  tls: true
+ 
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  storageClass: "longhorn"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
