@@ -1,0 +1,174 @@
+# ==================================================
+# PersistentVolumeClaim (Longhorn)
+# 통합 설정/이미지 관리용 단일 PVC
+# ==================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: yuvomi-pvc
+  namespace: yuvomi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# ==================================================
+# Service (ClusterIP)
+# ==================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: yuvomi
+  namespace: yuvomi
+spec:
+  type: ClusterIP
+  selector:
+    app: yuvomi
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+
+---
+# ==================================================
+# Yuvomi Deployment
+# ==================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yuvomi
+  namespace: yuvomi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yuvomi
+  template:
+    metadata:
+      labels:
+        app: yuvomi
+    spec:
+      containers:
+        - name: yuvomi
+          image: ghcr.io/ulsklyc/yuvomi:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: yuvomi-secret
+                  key: SESSION_SECRET
+            - name: DB_PATH
+              value: "/data/oikos.db"
+            - name: DB_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: yuvomi-secret
+                  key: DB_ENCRYPTION_KEY
+            - name: WEATHER_LAT
+              value: "37.5665"
+            - name: WEATHER_LON
+              value: "126.9780"
+            - name: WEATHER_CITY
+              value: "Seoul"
+            - name: WEATHER_UNITS
+              value: "metric"
+            - name: OIKOS_HTTP_PORT
+              value: "3000"
+            - name: EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_HOST
+            - name: EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_PORT
+            - name: EMAIL_SMTP_SECURE
+              value: "starttls"
+            - name: EMAIL_SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_USER
+            - name: EMAIL_SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_PASSWORD
+            - name: EMAIL_FROM_ADDRESS
+              value: "yuvomi@techbara.dev"
+            - name: EMAIL_FROM_NAME
+              value: "Yuvomi"
+            - name: BASE_URL
+              value: "https://family.techbara.dev"
+            - name: RATE_LIMIT_WINDOW_MS
+              value: "60000"
+            - name: RATE_LIMIT_MAX_ATTEMPTS
+              value: "5"
+            - name: RATE_LIMIT_BLOCK_DURATION_MS
+              value: "900000"
+            - name: ENABLE_API_DOCS
+              value: "true"
+          ports:
+            - containerPort: 3000
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: yuvomi-pvc
+              mountPath: /data
+              readOnly: false
+      volumes:
+        - name: yuvomi-pvc
+          persistentVolumeClaim:
+            claimName: yuvomi-pvc
+
+---
+# ==================================================
+# Ingress (k3s Traefik 기반)
+# ==================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yuvomi-ingress
+  namespace: yuvomi
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: family.techbara.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yuvomi
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - family.techbara.dev
+      secretName: yuvomi-tls
