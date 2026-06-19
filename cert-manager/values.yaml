@@ -1,0 +1,45 @@
+# ========================================================
+# cert-manager Helm Chart Values
+# https://artifacthub.io/packages/helm/cert-manager/cert-manager
+# ========================================================
+
+crds:
+  enabled: true
+
+replicaCount: 1
+
+extraArgs:
+  - --dns01-recursive-nameservers-only
+  - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 100Mi
+  limits:
+    cpu: 100m
+    memory: 256Mi
+
+webhook:
+  replicaCount: 1
+  timeoutSeconds: 10
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+
+cainjector:
+  replicaCount: 1
+  
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
