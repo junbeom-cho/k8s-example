@@ -14,7 +14,7 @@
       "prettier --write"
     ],
     "*": [
-      "secretlint"
+      "secretlint --no-gitignore"
     ]
   }
 }
