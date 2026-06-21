@@ -1,7 +1,9 @@
 {
   "devDependencies": {
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.8"
+    "lint-staged": "^17.0.8",
+    "secretlint": "^13.0.2"
   },
   "scripts": {
     "prepare": "husky"
@@ -10,6 +12,9 @@
     "*.{js,jsx,ts,tsx}": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "*": [
+      "secretlint"
     ]
   }
 }
