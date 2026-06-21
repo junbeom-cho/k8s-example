@@ -2,5 +2,14 @@
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8"
+  },
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
