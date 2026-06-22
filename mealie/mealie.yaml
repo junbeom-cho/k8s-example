@@ -1,0 +1,179 @@
+---
+# ==================================================
+# PVC: 데이터 영구 저장소
+# ==================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mealie-pvc
+spec:
+  storageClassName: longhorn
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# ==================================================
+# Deployment: 애플리케이션 워크로드
+# ==================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie
+  labels:
+    app: mealie
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mealie
+  template:
+    metadata:
+      labels:
+        app: mealie
+    spec:
+      containers:
+        - name: mealie
+          image: ghcr.io/mealie-recipes/mealie:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+              name: http
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: BASE_URL
+              value: "https://mealie.techbara.dev"
+            - name: DB_ENGINE
+              value: "postgres"
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-secret
+                  key: POSTGRES_HOST
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-secret
+                  key: POSTGRES_PORT
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_PORT
+            - name: SMTP_FROM_NAME
+              value: "Mealie"
+            - name: SMTP_FROM_EMAIL
+              value: "mealie@techbara.dev"
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_USER
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: brevo-secret
+                  key: SMTP_PASSWORD
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1.0"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: mealie-data
+              mountPath: /app/data/
+      volumes:
+        - name: mealie-data
+          persistentVolumeClaim:
+            claimName: mealie-pvc
+
+---
+# ==================================================
+# Service: 내부 네트워크 노출
+# ==================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mealie-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: mealie
+  ports:
+    - port: 9000
+      targetPort: 9000
+      name: http
+
+---
+# ==================================================
+# Ingress: 외부 트래픽 라우팅
+# ==================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mealie-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  tls:
+    - hosts:
+        - mealie.techbara.dev
+      secretName: mealie-tls-secret
+  rules:
+    - host: mealie.techbara.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mealie-svc
+                port:
+                  number: 9000
