@@ -1,0 +1,556 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Homarr Configuration
+# =============================================================================
+
+# -- Homarr image
+image:
+  repository: ghcr.io/homarr-labs/homarr
+  tag: "v1.64.0"
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Override the release name
+nameOverride: ""
+
+# -- Override the full release name
+fullnameOverride: "homarr"
+
+# -- Number of replicas (Homarr only supports 1 with SQLite)
+replicaCount: 1
+
+homarr:
+  # -- Log level: trace, debug, info, warn, error, fatal
+  logLevel: info
+
+  # -- Authentication providers (comma-separated): credentials, ldap, oidc
+  authProviders: credentials
+
+  # -- Enable Homarr's internal DNS cache. Disabled by default for Kubernetes Service discovery stability.
+  enableDnsCaching: false
+
+  # -- Enable Kubernetes integration for workload discovery
+  enableKubernetes: false
+
+  # -- Extra environment variables
+  # Example:
+  #   - name: LOCAL_CERTIFICATE_PATH
+  #     value: /appdata/trusted-certificates
+  extraEnv: []
+
+# =============================================================================
+# Encryption
+# =============================================================================
+
+encryption:
+  # -- 32-byte hex key for encrypting integration secrets
+  # Auto-generated if empty. Generate with: openssl rand -hex 32
+  key: ""
+
+  # -- Existing secret with the encryption key
+  existingSecret: "homarr-secret"
+
+  # -- Key in the existing secret
+  existingSecretKey: ENCRYPTION_KEY
+
+# =============================================================================
+# Database
+# =============================================================================
+# Homarr supports SQLite3 (default), PostgreSQL, and MySQL.
+# Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
+# based on which database section is configured.
+#
+# Auto-detection priority: external -> postgresql -> mysql -> sqlite
+# =============================================================================
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  mode: external
+
+  sqlite:
+    # -- SQLite database file path inside the data volume
+    path: /appdata/db/db.sqlite
+
+  external:
+    # -- Database vendor: postgres | mysql
+    vendor: postgres
+    # -- External database hostname
+    host: "postgres.database.svc.cluster.local"
+    # -- External database port (auto-detected from vendor if empty)
+    port: "5432"
+    # -- Database name
+    name: homarr_db
+    # -- Database username
+    username: homarr_user
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+    # -- Existing secret for the database password
+    existingSecret: "homarr-secret"
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: DATABASE_PASSWORD
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: false
+  # -- PostgreSQL architecture (standalone or replication)
+  architecture: standalone
+  auth:
+    # -- Database name created on first run
+    database: homarr
+    # -- Database username created on first run
+    username: homarr
+    # -- Database password (auto-generated if empty)
+    password: ""
+  initdb:
+    scripts:
+      10-homarr-privileges.sh: |
+        #!/bin/sh
+        set -e
+        if [ -n "${APP_DATABASE}" ] && [ -n "${APP_USERNAME}" ]; then
+          export PGPASSWORD="${POSTGRES_PASSWORD}"
+          psql --username "${POSTGRES_USER}" --dbname postgres \
+            --set=app_database="${APP_DATABASE}" \
+            --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('ALTER DATABASE %I OWNER TO %I', :'app_database', :'app_username') \gexec
+        SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+        SQL
+        fi
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+postgresqlUpgradeJob:
+  # -- Run a pre-upgrade hook that reapplies Homarr PostgreSQL grants on existing bundled PostgreSQL PVCs.
+  enabled: false
+  # -- Only run the hook when the bundled PostgreSQL Secret and Service already exist. Set to false only for controlled migrations where PostgreSQL is created before the upgrade hook runs.
+  requireExistingResources: true
+  image:
+    # -- PostgreSQL client image used by the upgrade hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# -- Deploy MySQL as a subchart
+mysql:
+  enabled: false
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+  auth:
+    # -- Database name created on first run
+    database: homarr
+    # -- Database username created on first run
+    username: homarr
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+  startupProbe:
+    # -- Delay MySQL startup probing to avoid transient startup Warning events in k3d and slower nodes
+    initialDelaySeconds: 30
+
+# =============================================================================
+# Redis
+# =============================================================================
+# Homarr includes an embedded Redis by default. Only configure external Redis
+# if you need to share the cache across multiple instances.
+# =============================================================================
+
+redis:
+  # -- Use an external Redis instead of the embedded one
+  external: true
+
+  # -- External Redis host
+  host: "valkey-client"
+
+  # -- External Redis port
+  port: 6379
+
+  # -- External Redis password (optional)
+  password: ""
+
+  # -- Existing secret for external Redis password
+  existingSecret: "valkey-auth"
+
+  # -- Key in the existing secret
+  existingSecretKey: valkey-password
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /appdata
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 1Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the Homarr container
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 7575
+
+  # -- Annotations for the service
+  annotations: {}
+
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Homarr
+  enabled: true
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: "traefik"
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: dash.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts:
+    - host: home.techbara.dev
+      paths:
+        - path: /
+          pathType: Prefix
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: homarr-tls
+  #     hosts:
+  #       - dash.example.com
+  tls:
+    - hosts:
+        - home.techbara.dev
+      secretName: homarr-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute for Homarr HTTP (requires Gateway API CRDs)
+  enabled: false
+
+  # -- Parent Gateway references.
+  parentRefs: []
+  #   - name: shared-gateway
+  #     namespace: gateway-system
+  #     sectionName: https
+
+  # -- HTTPRoute hostnames
+  hostnames: []
+  #   - dash.example.com
+
+  # -- HTTPRoute path
+  path: /
+
+  # -- HTTPRoute path match type
+  pathType: PathPrefix
+
+  # -- HTTPRoute annotations
+  annotations: {}
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Database-aware backup: SQLite archives the full /appdata directory,
+# PostgreSQL uses pg_dump, MySQL uses mysqldump. All upload to S3.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: homarr
+
+  images:
+    # -- Image used for SQLite backup (must have tar)
+    sqlite: docker.io/library/alpine:3.22
+    # -- Image used for PostgreSQL backup (must have pg_dump)
+    postgresql: docker.io/library/postgres:18.3-alpine
+    # -- Image used for MySQL backup (must have mysqldump)
+    mysql: docker.io/library/mysql:8.4
+    # -- Image used for S3 upload (MinIO client)
+    uploader: docker.io/helmforge/mc:1.0.0
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: homarr
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Override database password for backup
+    password: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for pg_dump
+    postgresDumpArgs: ""
+    # -- Extra arguments for mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Homarr encryption/auth secret.
+  # Requires encryption.existingSecret to be set to prevent credential drift
+  # between the chart-managed Secret and the ExternalSecret.
+  enabled: false
+
+  # -- ExternalSecret apiVersion
+  apiVersion: external-secrets.io/v1
+
+  # -- Refresh interval
+  refreshInterval: "0"
+
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore or ClusterSecretStore
+    kind: SecretStore
+
+  target:
+    # -- ExternalSecret target Secret creation policy
+    creationPolicy: Owner
+
+  # -- ExternalSecret data entries mapping remote keys to Homarr encryption Secret keys.
+  data: []
+  #   - secretKey: secret-encryption-key
+  #     remoteRef:
+  #       key: homarr/credentials
+  #       property: secret-encryption-key
+  #   - secretKey: auth-secret
+  #     remoteRef:
+  #       key: homarr/credentials
+  #       property: auth-secret
+
+  # -- ExternalSecret annotations
+  annotations: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# =============================================================================
+# Extra Manifests
+# =============================================================================
+
+# -- List of extra Kubernetes manifests to deploy
+extraManifests: []
