@@ -1,0 +1,472 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Hoppscotch Helm Chart - Default Values
+# =============================================================================
+# Supported modes:
+# - dev        Single replica, PostgreSQL subchart, EMAIL auth, minimal resources
+# - production Requires hostname + database, full auth support
+
+# -- Chart mode: dev | production
+mode: production
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: "hoppscotch"
+
+# -- Override the namespace used by chart-managed namespaced resources. Use with an external database; the bundled PostgreSQL subchart stays in the Helm release namespace.
+namespaceOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Hoppscotch AIO image repository
+  repository: docker.io/hoppscotch/hoppscotch
+  # -- Hoppscotch image tag
+  tag: "2026.5.0"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# URLs
+# =============================================================================
+# All URL values are auto-derived from ingress.host when left empty.
+# Override individually if needed.
+
+# -- Public URL where the frontend is accessible (VITE_BASE_URL).
+# Auto-derived as https://<ingress.host> when empty.
+baseUrl: ""
+
+# -- URL for the admin dashboard (VITE_ADMIN_URL).
+# Auto-derived as https://<ingress.host>/admin when empty.
+adminUrl: ""
+
+# -- Backend GraphQL URL (VITE_BACKEND_GQL_URL).
+# Auto-derived as https://<ingress.host>/backend/graphql when empty.
+backendGqlUrl: ""
+
+# -- Backend WebSocket URL (VITE_BACKEND_WS_URL). Must use wss:// in production.
+# Auto-derived as wss://<ingress.host>/backend/graphql when empty.
+backendWsUrl: ""
+
+# -- Backend REST API URL (VITE_BACKEND_API_URL).
+# Auto-derived as https://<ingress.host>/backend/v1 when empty.
+backendApiUrl: ""
+
+# -- Shortcode base URL (VITE_SHORTCODE_BASE_URL). Defaults to baseUrl.
+shortcodeBaseUrl: ""
+
+# -- Optional Terms of Service URL (VITE_APP_TOS_LINK).
+tosLink: ""
+
+# -- Optional Privacy Policy URL (VITE_APP_PRIVACY_POLICY_LINK).
+privacyPolicyLink: ""
+
+proxy:
+  # -- Default Hoppscotch proxy URL (PROXY_APP_URL). Leave empty to configure it from the Admin Dashboard.
+  appUrl: ""
+
+# =============================================================================
+# Encryption
+# =============================================================================
+
+encryption:
+  # -- Exactly 32-character key for encrypting sensitive data in the database.
+  # Auto-generated on first install if empty and no existingSecret is set.
+  # WARNING: changing this key after first install will corrupt all existing
+  # encrypted data in the database. Treat this key as immutable after first use.
+  key: ""
+  # -- Existing secret containing the DATA_ENCRYPTION_KEY.
+  existingSecret: "hoppscotch-secret"
+  # -- Key within existingSecret that holds the encryption key.
+  existingSecretKey: DATA_ENCRYPTION_KEY
+
+signingKey:
+  # -- Existing secret containing WEBAPP_SERVER_SIGNING_KEY. Useful with ExternalSecret-managed secrets.
+  existingSecret: ""
+  # -- Key within existingSecret that holds WEBAPP_SERVER_SIGNING_KEY.
+  existingSecretKey:
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# PostgreSQL subchart - enabled by default for dev mode.
+# Disable and configure database.external for production with an external DB.
+postgresql:
+  enabled: false
+  auth:
+    database: hoppscotch
+    username: hoppscotch
+    # -- PostgreSQL password. Auto-generated if empty.
+    password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  initdb:
+    scripts:
+      02-hoppscotch-extensions.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
+          -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+
+postgresqlExtensionsJob:
+  # -- Run a pre-upgrade hook that ensures pg_trgm exists on bundled PostgreSQL databases with existing PVCs.
+  enabled: false
+  # -- Only run the hook when the bundled PostgreSQL Secret and Service already exist. Set to false only for controlled migrations where PostgreSQL is created before the upgrade hook runs.
+  requireExistingResources: true
+  image:
+    # -- PostgreSQL client image used by the extension hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+database:
+  # -- Use an external PostgreSQL instance instead of the bundled subchart.
+  external:
+    enabled: true
+    # -- External PostgreSQL host
+    host: "postgres.database.svc.cluster.local"
+    # -- External PostgreSQL port
+    port: 5432
+    # -- Database name
+    name: hoppscotch_db
+    # -- Database username
+    username: hoppscotch_user
+    # -- Database password (inline; use existingSecret for production)
+    password: ""
+    # -- Existing secret containing the database password.
+    existingSecret: "hoppscotch-secret"
+    # -- Key within existingSecret that holds the password.
+    existingSecretPasswordKey:
+    # -- Full DATABASE_URL override. Takes precedence over individual fields.
+    # Format: postgresql://user:pass@host:5432/db
+    url: ""
+    # -- Key within existingSecret that holds the full DATABASE_URL.
+    # Set this when the external secret contains a complete DATABASE_URL string.
+    # Leave empty when the secret only contains the password (existingSecretPasswordKey).
+    existingSecretUrlKey: "DATABASE_URL"
+
+# =============================================================================
+# Authentication Providers
+# =============================================================================
+
+auth:
+  # -- Comma-separated list of enabled authentication providers.
+  # Valid values: GOOGLE, GITHUB, MICROSOFT, EMAIL
+  providers: "EMAIL"
+
+  github:
+    # -- Enable GitHub OAuth authentication
+    enabled: false
+    # -- GitHub OAuth App client ID
+    clientId: ""
+    # -- GitHub OAuth App client secret
+    clientSecret: ""
+    # -- Existing secret with GitHub credentials (keys: github-client-id, github-client-secret)
+    existingSecret: ""
+    existingSecretClientIdKey: github-client-id
+    existingSecretClientSecretKey: github-client-secret
+    # -- GitHub OAuth scope
+    scope: "user:email"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+  google:
+    # -- Enable Google OAuth authentication
+    enabled: false
+    # -- Google OAuth client ID
+    clientId: ""
+    # -- Google OAuth client secret
+    clientSecret: ""
+    # -- Existing secret with Google credentials
+    existingSecret: ""
+    existingSecretClientIdKey: google-client-id
+    existingSecretClientSecretKey: google-client-secret
+    # -- Google OAuth scope
+    scope: "email,profile"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+  microsoft:
+    # -- Enable Microsoft OAuth authentication
+    enabled: false
+    # -- Microsoft/Azure AD app client ID
+    clientId: ""
+    # -- Microsoft/Azure AD app client secret
+    clientSecret: ""
+    # -- Existing secret with Microsoft credentials
+    existingSecret: ""
+    existingSecretClientIdKey: microsoft-client-id
+    existingSecretClientSecretKey: microsoft-client-secret
+    # -- Microsoft OAuth scope
+    scope: "user.read"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+# =============================================================================
+# SMTP / Email
+# =============================================================================
+
+mailer:
+  # -- Enable SMTP email delivery
+  enabled: true
+  # -- From address for outgoing emails
+  from: "Hoppscotch <hoppscotch@techbara.dev>"
+  # -- Use custom field-by-field SMTP config instead of a URL
+  useCustomConfigs: false
+  # -- Full SMTP URL (used when useCustomConfigs=false)
+  # Format: smtps://user@domain.com:pass@smtp.domain.com
+  smtpUrl: ""
+  # -- SMTP host (used when useCustomConfigs=true)
+  host: "smtp-relay.brevo.com"
+  # -- SMTP port (used when useCustomConfigs=true)
+  port: 587
+  # -- Enable TLS/SSL (used when useCustomConfigs=true)
+  secure: false
+  # -- SMTP username (used when useCustomConfigs=true)
+  user: "ac3420001@smtp-brevo.com"
+  # -- SMTP password (used when useCustomConfigs=true)
+  password: ""
+  # -- Reject unauthorized TLS certificates
+  tlsRejectUnauthorized: true
+  # -- Existing secret with SMTP credentials
+  existingSecret: "hoppscotch-secret"
+  existingSecretSmtpUrlKey: SMTP_URL
+  existingSecretPasswordKey: SMTP_PASSWORD
+
+# =============================================================================
+# Deployment
+# =============================================================================
+
+# -- Number of Hoppscotch replicas. App is stateless - horizontal scaling is safe.
+replicaCount: 1
+
+deployment:
+  strategy:
+    # -- Rollout strategy type
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name override
+  name: ""
+  # -- Mount the Kubernetes API token into Hoppscotch pods
+  automountServiceAccountToken: false
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  type: ClusterIP
+  port: 80
+  # -- Internal non-root HTTP port used by the Hoppscotch AIO Caddy server.
+  # The AIO image keeps the backend on localhost:8080, so Caddy must use a different non-root port.
+  containerPort: 8081
+  # -- Service IP family policy (GR-058 dual-stack)
+  # @default -- null (cluster default)
+  ipFamilyPolicy: null
+  # -- Service IP families (GR-058 dual-stack)
+  # @default -- [] (cluster default)
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable Ingress
+  enabled: true
+  # -- IngressClass name
+  ingressClassName: "traefik"
+  # -- Primary hostname. Used to auto-derive VITE_* URLs when set.
+  host: "hoppscotch.techbara.dev"
+  # -- Additional annotations
+  # Note: WebSocket requires proxy-read-timeout and upgrade annotations - see NOTES.txt
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    ttraefik.ingress.kubernetes.io/transport.respondingTimeouts.readTimeout: "3600s"
+    traefik.ingress.kubernetes.io/transport.respondingTimeouts.writeTimeout: "3600s"
+
+  
+  # -- TLS configuration
+  tls:
+    - hosts:
+        - hoppscotch.techbara.dev
+      secretName: hoppscotch-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute
+  enabled: false
+  # -- References to Gateway listeners (required when enabled)
+  parentRefs: []
+  # -- Hostnames for the HTTPRoute
+  hostnames: []
+  # -- HTTPRoute path
+  path: /
+  # -- HTTPRoute path match type
+  pathType: PathPrefix
+  annotations: {}
+
+# =============================================================================
+# External Secrets Operator (GR-061)
+# =============================================================================
+
+externalSecrets:
+  # -- Enable ExternalSecret resource
+  enabled: false
+  # -- ExternalSecret apiVersion
+  apiVersion: external-secrets.io/v1
+  secretStoreRef:
+    # -- Name of the SecretStore or ClusterSecretStore (required when enabled)
+    name: ""
+    kind: SecretStore
+  refreshInterval: "1h"
+  data: []
+  dataFrom: []
+  annotations: {}
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# =============================================================================
+# Extras
+# =============================================================================
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+# -- Extra init containers (appended after wait-for-db and migrate)
+initContainers: []
+
+# -- Extra environment variables injected into the main container
+extraEnv: []
+
+# -- Extra envFrom entries (ConfigMaps, Secrets)
+extraEnvFrom: []
