@@ -1,0 +1,65 @@
+# ====================================================================
+# Bitnami MinIO Values
+# ====================================================================
+
+architecture: standalone
+
+fullnameOverride: "minio"
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/minio
+  tag: latest
+  pullPolicy: IfNotPresent
+
+clientImage:
+  registry: docker.io
+  repository: bitnamilegacy/minio-client
+  tag: latest
+  pullPolicy: IfNotPresent
+
+console:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/minio-object-browser
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  ingress:
+    enabled: true
+    ingressClassName: "traefik"
+    hostname: "minio.techbara.dev"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    tls: true
+
+auth:
+  existingSecret: "minio-secret"
+  rootUserSecretKey: "ROOT_USER"
+  rootPasswordSecretKey: "ROOT_PASSWORD"
+  usePasswordFiles: true
+
+extraEnvVars:
+  - name: TZ
+    value: "Asia/Seoul"
+
+ingress:
+  enabled: true
+  ingressClassName: "traefik"
+  hostname: "s3.techbara.dev"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-crowdsec-bouncer@kubernetescrd"
+  tls: true
+
+
+persistence:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  size: 50Gi
+  storageClass: "longhorn"
