@@ -17,7 +17,7 @@ image:
   # -- Vaultwarden image repository
   repository: docker.io/vaultwarden/server
   # -- Vaultwarden image tag
-  tag: "1.36.0"
+  tag: "1.37.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -218,7 +218,7 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd,traefik-crowdsec-bouncer@kubernetescrd"
     # cert-manager.io/cluster-issuer: letsencrypt
   # -- Ingress hosts
   hosts:
