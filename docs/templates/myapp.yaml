@@ -1,0 +1,307 @@
+# ==================================================
+# 서비스 템플릿 (docker-compose → K8s 변환용)
+#
+# 사용법:
+#   1) docs/templates/README.md 의 스캐폴딩 명령으로 복사 (myapp → 실제 서비스명 치환)
+#   2) 아래 TODO 주석을 따라 값을 채운다
+#   3) kubectl apply --dry-run=client -f <svc>/<svc>.yaml 로 검증 후 apply
+#
+# 규칙 (AGENTS.md):
+#   - 서비스 1개 = 폴더 1개 + 네임스페이스 1개
+#   - 네임스페이스 있는 리소스에는 namespace 를 항상 명시
+#   - Ingress 는 ingressClassName: traefik
+#   - PVC 는 storageClassName: longhorn 명시 (local-path 와 default 중복이라 필수)
+#   - 이미지 태그는 반드시 고정 (:latest 금지)
+#
+# 문서 순서: Namespace 가 맨 위여야 나머지 리소스 apply 가 성공한다.
+# ==================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myapp
+  labels:
+    app: myapp
+
+---
+# ==================================================
+# ConfigMap (env): compose 의 environment / env_file 중 "비밀이 아닌" 값
+#   compose:  environment:
+#               - TZ=Asia/Seoul
+#               - APP_URL=https://myapp.techbara.dev
+#   →  envFrom.configMapRef 로 컨테이너에 일괄 주입
+#
+# 주의: ConfigMap 을 수정해도 Pod 는 자동 재시작되지 않는다.
+#       kubectl rollout restart deployment/myapp -n myapp 으로 반영.
+# ==================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-config
+  namespace: myapp
+  labels:
+    app: myapp
+data:
+  TZ: "Asia/Seoul"
+  # linuxserver.io 계열 이미지는 root 대신 PUID/PGID 로 권한을 맞춘다
+  PUID: "1000"
+  PGID: "1000"
+  # TODO: compose environment 중 비밀이 아닌 항목을 여기로
+  APP_URL: "https://myapp.techbara.dev"
+  LOG_LEVEL: "info"
+
+---
+# ==================================================
+# ConfigMap (file): compose 의 "설정 파일 bind mount" 대체
+#   compose:  volumes:
+#               - ./config.yaml:/etc/myapp/config.yaml:ro
+#   →  ConfigMap + volumeMounts.subPath (아래 Deployment 참고)
+#
+# 필요 없으면 이 문서와 Deployment 의 config 볼륨/마운트를 함께 삭제할 것.
+# ==================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-files
+  namespace: myapp
+  labels:
+    app: myapp
+data:
+  config.yaml: |
+    # TODO: 앱 설정 파일 내용
+    server:
+      port: 8080
+
+---
+# ==================================================
+# PVC: compose 의 named volume / 데이터 bind mount 대체
+#   compose:  volumes:
+#               - myapp-data:/data
+#   →  Longhorn PVC (ReclaimPolicy Retain)
+#
+# 단일 노드라 RWO 로 충분. RWX 가 필요하면 Longhorn RWX 사용 여부를 먼저 확인.
+# ==================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myapp-data
+  namespace: myapp
+  labels:
+    app: myapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi # TODO: 실제 필요량으로 조정 (Longhorn 은 온라인 확장 가능)
+
+---
+# ==================================================
+# Deployment: compose 의 service 1개 = Deployment 1개
+#   restart: unless-stopped  →  기본값(restartPolicy: Always)이라 별도 설정 불필요
+#   container_name           →  metadata.name
+#   depends_on               →  initContainer 대기 or readinessProbe (아래 예시)
+# ==================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: myapp
+  labels:
+    app: myapp
+  annotations:
+    # (선택) Diun 이미지 업데이트 알림 대상에 포함
+    diun.enable: "true"
+    # (선택) Infisical Secret 값이 바뀌면 이 Deployment 를 자동 재시작
+    # secrets.infisical.com/auto-reload: "true"
+spec:
+  replicas: 1
+  # RWO PVC 를 쓰면 RollingUpdate 시 새 Pod 가 볼륨을 못 잡고 멈춘다 → Recreate 필수
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      # compose 의 user: "1000:1000" 대응.
+      # 이미지가 root 를 요구하거나 PUID/PGID 방식이면 이 블록을 지우고 ConfigMap 쪽 PUID/PGID 를 쓸 것.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        # 볼륨 소유권 변경을 최초 1회만 수행 (대용량 PVC 기동 지연 방지)
+        fsGroupChangePolicy: "OnRootMismatch"
+
+      # compose 의 depends_on 대체 — DB/의존 서비스가 뜰 때까지 대기
+      # initContainers:
+      #   - name: wait-for-postgres
+      #     image: busybox:1.37.0
+      #     command:
+      #       - sh
+      #       - -c
+      #       - until nc -z postgres.database.svc.cluster.local 5432; do echo waiting for db; sleep 2; done
+
+      containers:
+        - name: myapp
+          image: docker.io/library/myapp:1.0.0 # TODO: 실제 이미지:태그 (:latest 금지)
+          imagePullPolicy: IfNotPresent
+
+          # compose 의 entrypoint / command 대응
+          # command: ["/app/entrypoint.sh"]   # ← compose: entrypoint
+          # args: ["--config", "/etc/myapp/config.yaml"]  # ← compose: command
+
+          ports:
+            - name: http
+              containerPort: 8080 # TODO: compose "ports: 3000:8080" 의 컨테이너쪽(8080)
+
+          # compose 의 environment / env_file 을 통째로 주입
+          envFrom:
+            - configMapRef:
+                name: myapp-config
+            # Secret 이 아직 없으면 Pod 가 기동하지 않는다.
+            # 부팅 순서를 느슨하게 하려면 optional: true 를 켤 것.
+            - secretRef:
+                name: myapp-secret
+                optional: false
+
+          # 특정 키만 골라 쓰거나, 이름을 바꿔 매핑해야 할 때
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secret
+                  key: DB_PASSWORD
+            # 공용 SMTP 등 다른 서비스의 Secret 을 쓰려면 같은 네임스페이스에 동기화가 필요하다
+            # (Secret 은 네임스페이스를 넘어 참조할 수 없음 → myapp-secret-sync.yaml 에 항목 추가)
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+
+          # compose 의 healthcheck 대응
+          # startupProbe: 초기 부팅이 느린 앱에서 liveness 가 조기에 죽이는 것을 방지
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60 # 최대 5분 대기
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: data
+              mountPath: /data # TODO: compose volume 의 컨테이너쪽 경로
+            # 설정 파일 1개만 덮어쓸 때는 subPath 사용 (디렉터리 전체가 가려지는 것 방지)
+            - name: config
+              mountPath: /etc/myapp/config.yaml
+              subPath: config.yaml
+              readOnly: true
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: myapp-data
+        - name: config
+          configMap:
+            name: myapp-files
+        # compose 의 tmpfs 대응
+        # - name: tmp
+        #   emptyDir:
+        #     medium: Memory
+        #     sizeLimit: 256Mi
+
+---
+# ==================================================
+# Service: compose 의 "컨테이너 간 통신"(networks) 대체
+#   같은 네임스페이스면 http://myapp:8080 으로 호출.
+#   다른 네임스페이스면 http://myapp.myapp.svc.cluster.local:8080
+#
+#   compose 의 "ports: 3000:8080"(호스트 포트 공개)은 K8s 에서 Ingress 가 담당한다.
+#   NodePort/hostPort 는 쓰지 말 것.
+# ==================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+  namespace: myapp
+  labels:
+    app: myapp
+spec:
+  type: ClusterIP
+  selector:
+    app: myapp
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+---
+# ==================================================
+# Ingress: 외부 노출 (Traefik + cert-manager DNS-01)
+#
+# 미들웨어는 "<미들웨어 네임스페이스>-<이름>@kubernetescrd" 형식이며
+# 이 클러스터의 Middleware 는 전부 traefik 네임스페이스에 있다:
+#   traefik-crowdsec-bouncer@kubernetescrd     # IP 차단 (WAF)
+#   traefik-cloudflare-only@kubernetescrd      # Cloudflare 프록시 IP 만 허용
+#   traefik-authentik-forwardauth@kubernetescrd # SSO 강제 (비공개 서비스에 사용)
+# 여러 개를 걸 때는 하나의 어노테이션에 콤마로 나열하고, 적용 순서 = 나열 순서다.
+# ==================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp
+  namespace: myapp
+  labels:
+    app: myapp
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: myapp.techbara.dev # TODO: 실제 호스트 (Cloudflare DNS 레코드도 함께 추가)
+      http:
+        paths:
+          # 프런트/백엔드가 분리된 앱은 경로별로 서비스·포트를 나눈다 (예: pingvin-share-x)
+          # - path: /api
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: myapp-backend
+          #       port:
+          #         name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: myapp
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - myapp.techbara.dev
+      secretName: myapp-tls
