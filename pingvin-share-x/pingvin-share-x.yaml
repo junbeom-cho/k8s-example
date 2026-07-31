@@ -109,8 +109,8 @@ spec:
     spec:
       containers:
         - name: pingvin-share-x
-          image: smp46/pingvin-share-x:latest
-          imagePullPolicy: Always
+          image: smp46/pingvin-share-x:v1.21.2
+          imagePullPolicy: IfNotPresent
           env:
             - name: TRUST_PROXY
               value: "true"
@@ -133,8 +133,10 @@ spec:
             periodSeconds: 10
           volumeMounts:
             - name: pingvin-share-pvc
-              mountPath: /data
-              readOnly: false
+              mountPath: /opt/app/backend/data
+            - name: pingvin-share-pvc
+              mountPath: /opt/app/frontend/public/img
+              subPath: images 
       volumes:
         - name: pingvin-share-pvc
           persistentVolumeClaim:
