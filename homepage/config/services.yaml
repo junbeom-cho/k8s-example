@@ -1,0 +1,82 @@
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/services/
+
+- Apps - 개발 및 자동화:
+    - CloudBeaver:
+        href: https://beaver.techbara.dev/
+        description: 웹기반 데이터베이스 관리 도구
+        icon: cloudbeaver.svg
+    - It-Tools:
+        href: https://tools.techbara.dev/
+        description: IT 관련 유틸리티 모음
+        icon: it-tools-light.svg
+    - n8n:
+        href: https://n8n.techbara.dev/
+        description: 워크플로우 자동화 도구
+        icon: n8n.svg
+    - ChangeDetection:
+        href: https://change.techbara.dev/
+        description: 웹사이트 변경 감지 도구
+        icon: changedetection.svg
+
+- Apps - 생산성 및 도구:
+    - VaultWarden:
+        href: https://vault.techbara.dev/
+        description: 비밀번호 관리자
+        icon: vaultwarden-light.svg
+    - Syncthing:
+        href: https://sync.techbara.dev/
+        description: 파일 동기화 서비스
+        icon: syncthing.svg
+    - Obsidian:
+        href: https://wiki.techbara.dev/
+        description: 노트 관리 도구
+        icon: obsidian.svg
+    - FileBrowser:
+        href: https://drive.techbara.dev/
+        description: 웹 기반 파일 관리 도구
+        icon: filebrowser.svg
+    - Shlink:
+        href: https://shlink.techbara.dev/
+        description: URL 단축 서비스
+        icon: shlink.svg
+    - Mealie:
+        href: https://mealie.techbara.dev/
+        description: 레시피 관리 도구
+        icon: mealie.svg
+    - WordPress:
+        href: https://www.techbara.dev/
+        description: 블로그 플랫폼
+        icon: wordpress.svg
+    - Karakeep:
+        href: https://karakeep.techbara.dev/
+        description: 북마크 관리자
+        icon: karakeep-dark.svg
+
+- Core Infrastructure:
+    - Longhorn:
+        href: https://longhorn.techbara.dev/
+        description: 클라우드 네이티브 분산 블록 스토리지
+        icon: longhorn.svg
+    - Infisical:
+        href: https://infisical.techbara.dev/
+        description: 비밀 관리 도구
+        icon: infisical.svg
+
+- Monitoring:
+    - Umami:
+        href: https://umami.techbara.dev/
+        description: 웹사이트 트래픽 분석 도구
+        icon: umami-light.svg
+    - Scrutiny:
+        href: https://scrutiny.techbara.dev/
+        description: 스토리지 모니터링 도구
+        icon: scrutiny.svg
+    - Grafana:
+        href: https://grafana.techbara.dev/
+        description: 모니터링 대시보드
+        icon: grafana.svg
+    - Uptime-Kuma:
+        href: https://kuma.techbara.dev/
+        description: 서비스 모니터링 도구
+        icon: uptime-kuma.svg
