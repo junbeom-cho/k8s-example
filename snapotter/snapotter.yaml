@@ -1,0 +1,273 @@
+# ==================================================
+# SnapOtter (docker-compose.yml → K8s 변환)
+#   템플릿: docs/templates/myapp.yaml
+#
+# compose 대비 변경점
+#   - postgres 컨테이너  → 삭제. database ns 의 공용 postgres 사용
+#                          (postgres.database.svc.cluster.local:5432 / snapotter_db)
+#   - redis 컨테이너     → snapotter ns 전용 Valkey (Helm, values-valkey-helmforge.yaml)
+#   - build:             → 퍼블리시된 이미지 사용 (docker.io/snapotter/snapotter:2.2.0)
+#   - ports: 1349:1349   → Service + Ingress (snapotter.techbara.dev)
+#
+# 배포 전 준비
+#   1) database ns 의 postgres 에 DB/유저 생성 (snapotter_db / snapotter_user)
+#   2) Infisical 프로젝트 "snapotter" prod 환경에 아래 키 등록
+#      DATABASE_URL / REDIS_URL / VALKEY_PASSWORD / DEFAULT_PASSWORD / COOKIE_SECRET
+#      (키 목록은 snapotter-secret.yaml 참고)
+#   3) Cloudflare 에 snapotter.techbara.dev DNS 레코드 추가
+#
+# 배포 순서 — Valkey 차트가 snapotter-secret 을 참조하므로 Secret 이 먼저 있어야 한다
+#   kubectl apply -f snapotter/snapotter.yaml              # Namespace 포함
+#   kubectl apply -f snapotter/snapotter-secret-sync.yaml  # Secret 생성 대기
+#   helm upgrade --install valkey helmforge/valkey --version 1.0.1 \
+#     -n snapotter -f snapotter/values-valkey-helmforge.yaml
+# ==================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: snapotter
+  labels:
+    app: snapotter
+
+---
+# ==================================================
+# ConfigMap: compose environment 중 비밀이 아닌 값
+# (DATABASE_URL / REDIS_URL / DEFAULT_PASSWORD 는 자격증명을 포함하므로 Secret 으로 이동)
+# ==================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snapotter-config
+  namespace: snapotter
+  labels:
+    app: snapotter
+data:
+  TZ: "Asia/Seoul"
+  AUTH_ENABLED: "true"
+  DEFAULT_USERNAME: "admin"
+  SKIP_MUST_CHANGE_PASSWORD: "false"
+  MAX_UPLOAD_SIZE_MB: "0"
+  MAX_BATCH_SIZE: "0"
+  MAX_MEGAPIXELS: "0"
+  CONCURRENT_JOBS: "0"
+  MAX_WORKER_THREADS: "0"
+  PROCESSING_TIMEOUT_S: "0"
+  MAX_USERS: "0"
+  MAX_PIPELINE_STEPS: "20"
+  RATE_LIMIT_PER_MIN: "1000"
+  SESSION_DURATION_HOURS: "168"
+
+  # X-Forwarded-For 를 사설 대역 피어에서만 신뢰한다.
+  # Traefik 이 클러스터 내부(파드 CIDR 10.42.0.0/16)에서 프록시하므로 uniquelocal 로 커버된다.
+  # "true" 로 바꾸면 임의의 클라이언트가 IP 를 위조할 수 있으니 그대로 둘 것.
+  TRUST_PROXY: "loopback,linklocal,uniquelocal"
+
+  # OIDC(Authentik) 연동 시 필요. 지금은 앱 자체 인증을 사용한다.
+  EXTERNAL_URL: "https://snapotter.techbara.dev"
+  # OIDC_ENABLED: "false"
+
+---
+# ==================================================
+# PVC: AI 모델 + 사용자 파일 (compose: SnapOtter-data)
+# ==================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: snapotter-data
+  namespace: snapotter
+  labels:
+    app: snapotter
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# ==================================================
+# SnapOtter 본체
+# ==================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapotter
+  namespace: snapotter
+  labels:
+    app: snapotter
+  annotations:
+    diun.enable: "true"
+    # Infisical Secret 변경 시 자동 재시작이 필요하면 주석 해제
+    # secrets.infisical.com/auto-reload: "true"
+spec:
+  replicas: 1
+  # RWO PVC 라서 RollingUpdate 는 불가 (새 파드가 볼륨을 못 잡는다)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snapotter
+  template:
+    metadata:
+      labels:
+        app: snapotter
+    spec:
+      # compose: depends_on(service_healthy) 대체
+      initContainers:
+        - name: wait-for-deps
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 postgres.database.svc.cluster.local 5432; do echo "waiting for postgres"; sleep 3; done
+              until nc -z -w2 valkey-client 6379; do echo "waiting for valkey"; sleep 3; done
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
+      containers:
+        - name: snapotter
+          image: docker.io/snapotter/snapotter:2.2.0
+          imagePullPolicy: IfNotPresent
+          # PUID/PGID 리매핑 때문에 /etc/passwd 쓰기가 필요하고 tini(PID 1)가 root 여야 한다.
+          # → runAsUser / readOnlyRootFilesystem 을 설정하지 말 것. compose 주석과 동일한 이유.
+          securityContext:
+            allowPrivilegeEscalation: false # compose: no-new-privileges:true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+                - DAC_OVERRIDE
+                - FOWNER
+                # tini 가 종료 시 다른 UID 의 프로세스에 SIGTERM 을 전달하는 데 필요.
+                # 빼면 graceful shutdown 이 실패하고 SIGKILL 된다.
+                - KILL
+          ports:
+            - name: http
+              containerPort: 1349
+          envFrom:
+            - configMapRef:
+                name: snapotter-config
+            # DATABASE_URL / REDIS_URL / DEFAULT_PASSWORD / COOKIE_SECRET
+            - secretRef:
+                name: snapotter-secret
+                optional: false
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "4" # compose: cpus 4
+              # compose 는 mem_limit 6g. K8s 에서 medium: Memory 인 emptyDir(/dev/shm 2Gi)은
+              # 컨테이너 메모리 한도에 함께 계산되므로 6Gi + 2Gi = 8Gi 로 잡았다.
+              # compose 와 정확히 같은 총량을 원하면 6Gi 로 낮출 것.
+              memory: "8Gi"
+          # compose 의 healthcheck 를 옮김. start_period 60s → startupProbe 로 분리해
+          # 초기 모델 로딩 중 liveness 가 컨테이너를 죽이지 않게 한다.
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30 # 최대 5분
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: workspace
+              mountPath: /tmp/workspace
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: snapotter-data
+        # 임시 처리 공간(자동 정리)이라 PVC 대신 노드 디스크를 쓴다.
+        # sizeLimit 초과 시 파드가 evict 되므로 대용량 배치 처리를 하면 값을 올릴 것.
+        - name: workspace
+          emptyDir:
+            sizeLimit: 20Gi
+        # compose: shm_size '2gb'
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+      # compose 의 pids_limit: 512 는 K8s 에 파드 단위 설정이 없다.
+      # 필요하면 kubelet 의 --pod-max-pids 로만 제한 가능 (노드 전역 설정).
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snapotter
+  namespace: snapotter
+  labels:
+    app: snapotter
+spec:
+  type: ClusterIP
+  selector:
+    app: snapotter
+  ports:
+    - name: http
+      port: 1349
+      targetPort: http
+      protocol: TCP
+
+---
+# ==================================================
+# Ingress
+# ==================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: snapotter
+  namespace: snapotter
+  labels:
+    app: snapotter
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd, traefik-crowdsec-bouncer@kubernetescrd"
+    # 앱 자체 로그인 대신 Authentik SSO 를 앞단에 두려면 위 목록에 아래를 추가:
+    #   traefik-authentik-forwardauth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: snapotter.techbara.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: snapotter
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - snapotter.techbara.dev
+      secretName: snapotter-tls
