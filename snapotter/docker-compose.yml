@@ -1,3 +1,9 @@
+# =====================================================================
+# SnapOtter — 업스트림 docker-compose.yml (참고용 원본)
+# snapotter.yaml 로 K8s 변환할 때 기준으로 삼은 업스트림 compose 파일입니다.
+# Kubernetes 에는 적용하지 않습니다 (kubectl / helm 대상 아님).
+# 공개 저장소용으로 자격증명 기본값은 change-me 로 치환했습니다.
+# =====================================================================
 name: SnapOtter
 
 # CPU deployment — no GPU required.
@@ -24,8 +30,8 @@ services:
       - AUTH_ENABLED=true
       - DEFAULT_USERNAME=admin
       # Set a strong password. Default is 'admin' -- CHANGE THIS for any non-local deployment.
-      # - DEFAULT_PASSWORD=your-strong-password-here
-      - DEFAULT_PASSWORD=admin
+      # - DEFAULT_PASSWORD=change-me
+      - DEFAULT_PASSWORD=change-me
       - SKIP_MUST_CHANGE_PASSWORD=${SKIP_MUST_CHANGE_PASSWORD:-false}
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-0}
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-0}
@@ -40,8 +46,8 @@ services:
       # Believe X-Forwarded-For only from a peer on a private network. Set to
       # `true` only if a proxy you control sits in front on a public address.
       - TRUST_PROXY=${TRUST_PROXY:-loopback,linklocal,uniquelocal}
-      - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:-snapotter}@postgres:5432/${POSTGRES_DB:-snapotter}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-snapotter}@redis:6379
+      - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-snapotter}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-change-me}@redis:6379
       # 1.x upgrade: uncomment to import the old SQLite database on first boot;
       # re-comment after the migration succeeds.
       # - SQLITE_MIGRATE_PATH=/data/snapotter.db
@@ -118,7 +124,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-snapotter}
       # Set a strong password. CHANGE THIS for any non-local deployment.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snapotter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-snapotter}
     volumes:
       - SnapOtter-pgdata:/var/lib/postgresql/data
@@ -156,7 +162,7 @@ services:
       --maxmemory-policy noeviction
       --maxmemory 512mb
       --appendonly yes
-      --requirepass ${REDIS_PASSWORD:-snapotter}
+      --requirepass ${REDIS_PASSWORD:-change-me}
     volumes:
       - SnapOtter-redisdata:/data
     restart: unless-stopped
@@ -179,7 +185,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-snapotter}", "--no-auth-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change-me}", "--no-auth-warning", "ping"]
       interval: 10s
       timeout: 5s
       retries: 12

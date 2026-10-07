@@ -1,6 +1,19 @@
-# ==============================================
-# Homepage Custom Yaml
-# ==============================================
+# =====================================================================
+# Homepage — Kubernetes manifest (직접 작성)
+# Images    : ghcr.io/gethomepage/homepage:latest (태그 미고정 → 사용 시 버전 고정 권장)
+# Namespace : homepage
+# Apply     : kubectl apply -f homepage.yaml
+# Config    : config/ 를 hostPath(/home/techbara/server-k3s/homepage/config)로 마운트
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# =====================================================================
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homepage
 
 ---
 # Deployment

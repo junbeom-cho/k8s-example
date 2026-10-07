@@ -1,0 +1,77 @@
+# =====================================================================
+# CrowdSec Traefik Bouncer — Kubernetes manifest (직접 작성)
+# Images    : docker.io/fbonalair/traefik-crowdsec-bouncer:latest
+# Namespace : crowdsec
+# Apply     : kubectl apply -f crowdsec-traefik-bouncer.yaml
+# 참고      : CrowdSec LAPI(values.yaml Helm 릴리스)와 crowdsec-secret 이 있어야 동작합니다.
+#             traefik ns 의 crowdsec-bouncer Middleware(forwardAuth)가 이 Service 를 호출하며,
+#             API 키는 crowdsec-secret 의 BOUNCER_API_KEY 를 사용합니다.
+# 주의      : crowdsec ns 는 Helm 릴리스와 공유됩니다. kubectl delete -f 는 Namespace 까지 지우므로
+#             제거는 kubectl delete deploy,svc crowdsec-traefik-bouncer -n crowdsec 로 하세요.
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crowdsec
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-traefik-bouncer
+  namespace: crowdsec
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crowdsec-traefik-bouncer
+  template:
+    metadata:
+      labels:
+        app: crowdsec-traefik-bouncer
+    spec:
+      containers:
+      - name: bouncer
+        image: docker.io/fbonalair/traefik-crowdsec-bouncer:latest
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: CROWDSEC_AGENT_HOST
+            value: "crowdsec-service.crowdsec.svc.cluster.local:8080"
+          
+          - name: GIN_MODE
+            value: "release"
+          
+          - name: CROWDSEC_BOUNCER_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: crowdsec-secret
+                key: BOUNCER_API_KEY
+
+          - name: CROWDSEC_LAPI_ENABLE_STREAM_MODE
+            value: "true"
+          
+          - name: CROWDSEC_LAPI_STREAM_MODE_INTERVAL
+            value: "1m"
+        ports:
+          - containerPort: 8080
+            name: http
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: crowdsec-traefik-bouncer
+  namespace: crowdsec
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80         
+      targetPort: 8080 
+      protocol: TCP
+      name: http
+  selector:
+    app: crowdsec-traefik-bouncer

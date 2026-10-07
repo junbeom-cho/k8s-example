@@ -1,20 +1,28 @@
-# ==================================================
-# 서비스 템플릿 (docker-compose → K8s 변환용)
-#
+# =====================================================================
+# myapp — Kubernetes manifest (직접 작성) · 서비스 템플릿 (docker-compose → K8s 변환용)
+# Images    : docker.io/library/myapp:1.0.0 (TODO), docker.io/library/busybox:1.37 (선택: initContainer)
+# Namespace : myapp
+# Apply     : kubectl apply -f myapp.yaml
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# ---------------------------------------------------------------------
 # 사용법:
 #   1) docs/templates/README.md 의 스캐폴딩 명령으로 복사 (myapp → 실제 서비스명 치환)
-#   2) 아래 TODO 주석을 따라 값을 채운다
+#      → <svc>/<svc>.yaml + <svc>/secret.yaml.example + <svc>/secret-sync.yaml.example
+#   2) 아래 TODO 주석을 따라 값을 채우고, 이 헤더의 Images 줄도 실제 이미지:태그로 갱신
 #   3) kubectl apply --dry-run=client -f <svc>/<svc>.yaml 로 검증 후 apply
 #
-# 규칙 (AGENTS.md):
-#   - 서비스 1개 = 폴더 1개 + 네임스페이스 1개
+# 규칙 (AGENTS.md, docs/templates/README.md):
+#   - 서비스 1개 = 디렉터리 1개 = 네임스페이스 1개 (디렉터리명 = 네임스페이스명)
 #   - 네임스페이스 있는 리소스에는 namespace 를 항상 명시
 #   - Ingress 는 ingressClassName: traefik
 #   - PVC 는 storageClassName: longhorn 명시 (local-path 와 default 중복이라 필수)
 #   - 이미지 태그는 반드시 고정 (:latest 금지)
+#   - 비밀 값은 이 파일에 쓰지 않는다 → secret.yaml.example (키 목록, 민감값은 change-me · 호스트/포트 등 구조값은 유지)
+#     + secret-sync.yaml.example (Infisical 에서 실제 값 주입)
 #
 # 문서 순서: Namespace 가 맨 위여야 나머지 리소스 apply 가 성공한다.
-# ==================================================
+# =====================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -139,11 +147,11 @@ spec:
       # compose 의 depends_on 대체 — DB/의존 서비스가 뜰 때까지 대기
       # initContainers:
       #   - name: wait-for-postgres
-      #     image: busybox:1.37.0
+      #     image: docker.io/library/busybox:1.37
       #     command:
       #       - sh
       #       - -c
-      #       - until nc -z postgres.database.svc.cluster.local 5432; do echo waiting for db; sleep 2; done
+      #       - until nc -z -w2 postgres.database.svc.cluster.local 5432; do echo waiting for db; sleep 2; done
 
       containers:
         - name: myapp
@@ -163,6 +171,7 @@ spec:
             - configMapRef:
                 name: myapp-config
             # Secret 이 아직 없으면 Pod 가 기동하지 않는다.
+            # (myapp-secret 은 secret-sync.yaml.example 또는 secret.yaml.example 로 생성)
             # 부팅 순서를 느슨하게 하려면 optional: true 를 켤 것.
             - secretRef:
                 name: myapp-secret
@@ -176,7 +185,7 @@ spec:
                   name: myapp-secret
                   key: DB_PASSWORD
             # 공용 SMTP 등 다른 서비스의 Secret 을 쓰려면 같은 네임스페이스에 동기화가 필요하다
-            # (Secret 은 네임스페이스를 넘어 참조할 수 없음 → myapp-secret-sync.yaml 에 항목 추가)
+            # (Secret 은 네임스페이스를 넘어 참조할 수 없음 → secret-sync.yaml.example 에 항목 추가)
 
           resources:
             requests:

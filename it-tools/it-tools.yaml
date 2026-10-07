@@ -1,0 +1,116 @@
+# =====================================================================
+# IT-Tools — Kubernetes manifest (직접 작성)
+# Images    : ghcr.io/sharevb/it-tools:latest
+# Namespace : it-tools
+# Apply     : kubectl apply -f it-tools.yaml
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# =====================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: it-tools
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: it-tools
+  namespace: it-tools
+  labels:
+    app: it-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: it-tools
+  template:
+    metadata:
+      labels:
+        app: it-tools
+    spec:
+      containers:
+        - name: it-tools
+          image: ghcr.io/sharevb/it-tools:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: NODE_ENV
+              value: "production"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+            requests:
+              cpu: "100m"
+              memory: 100Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: it-tools-svc
+  namespace: it-tools
+  labels:
+    app: it-tools
+spec:
+  type: ClusterIP
+  selector:
+    app: it-tools
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: it-tools-ingress
+  namespace: it-tools
+  labels:
+    app: it-tools
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd,traefik-crowdsec-bouncer@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: tools.techbara.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: it-tools-svc
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - tools.techbara.dev
+      secretName: it-tools-tls

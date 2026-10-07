@@ -1,0 +1,91 @@
+# =====================================================================
+# Traefik — Helm values
+# Chart     : traefik/traefik (https://traefik.github.io/charts)
+# Repo      : helm repo add traefik https://traefik.github.io/charts
+# Version   : chart 40.2.0 / app v3.7.1 (마지막 사용 기준)
+# Namespace : traefik
+# Install   : helm upgrade --install traefik traefik/traefik -n traefik --create-namespace -f values.yaml
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# =====================================================================
+
+hostNetwork: true
+
+image:
+  registry: docker.io
+  repository: traefik
+  pullPolicy: IfNotPresent
+
+providers:
+  kubernetesIngress:
+    publishedService:
+      enabled: false
+  kubernetesCRD:
+    allowCrossNamespace: true
+
+service:
+  enabled: true
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: "192.168.50.210"
+
+ports:
+  web:
+    port: 8000
+    expose:
+      default: true
+    exposedPort: 80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+    forwardedHeaders:
+      trustedIPs: &cloudflareIPs
+        - 103.21.244.0/22
+        - 103.22.200.0/22
+        - 103.31.4.0/22
+        - 104.16.0.0/13
+        - 104.24.0.0/14
+        - 108.162.192.0/18
+        - 131.0.72.0/22
+        - 141.101.64.0/18
+        - 162.158.0.0/15
+        - 172.64.0.0/13
+        - 173.245.48.0/20
+        - 188.114.96.0/20
+        - 190.93.240.0/20
+        - 197.234.240.0/22
+        - 198.41.128.0/17
+  websecure:
+    port: 8443
+    expose:
+      default: true
+    exposedPort: 443
+    forwardedHeaders:
+      trustedIPs: *cloudflareIPs
+
+deployment:
+  kind: DaemonSet
+  dnsPolicy: ClusterFirstWithHostNet
+  annotations:
+    diun.enable: "true"
+  podAnnotations:
+    diun.enable: "true"
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+
+ingressRoute:
+  dashboard:
+    enabled: true
+
+logs:
+  access:
+    enabled: true
+    format: json

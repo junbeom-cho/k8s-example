@@ -1,3 +1,19 @@
+# =====================================================================
+# CouchDB — Helm values
+# Chart     : couchdb/couchdb (https://apache.github.io/couchdb-helm — Apache CouchDB 공식 차트)
+# Repo      : helm repo add couchdb https://apache.github.io/couchdb-helm
+# Version   : chart 4.6.3 / app 3.5.1 (마지막 사용 기준)
+# Namespace : quartz
+# Install   : helm upgrade --install couchdb couchdb/couchdb -n quartz --create-namespace -f values-couchdb.yaml --set couchdbConfig.couchdb.uuid=$COUCHDB_UUID
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# ---------------------------------------------------------------------
+# 관리자 계정: createAdminSecret: true → 차트가 <ReleaseName>-couchdb Secret 을
+#   자동 생성(adminPassword / cookieAuthSecret / erlangCookie 랜덤)하므로 별도 Secret 템플릿 없음.
+# ⚠️ 인스턴스 UUID: 차트 3.0.0+ 는 couchdbConfig.couchdb.uuid 필수(없으면 렌더링 실패) — 이 파일엔 미설정이라
+#    Install 의 --set 으로 주입합니다. 비밀값이 아닌 서버 고유 ID 이므로 최초 1회 생성·보관 후
+#    upgrade 때도 같은 값을 재사용하세요:  export COUCHDB_UUID=$(uuidgen | tr -d -)
+# =====================================================================
 # -- the initial number of nodes in the CouchDB cluster.
 clusterSize: 1
 
@@ -44,9 +60,9 @@ cookieAuthSecretKey: ""
 erlangCookieKey: ""
 
 adminUsername: admin
-# adminPassword: this_is_not_secure
-# adminHash: -pbkdf2-this_is_not_necessarily_secure_either
-# cookieAuthSecret: neither_is_this
+# adminPassword: change-me
+# adminHash: change-me
+# cookieAuthSecret: change-me
 
 ## When enabled, will deploy a networkpolicy that allows CouchDB pods to
 ## communicate with each other for clustering and ingress on port 5984
@@ -183,7 +199,7 @@ ingress:
   hosts:
     - couchdb.techbara.dev
   path: /
-  annotations: {}
+  annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
@@ -222,7 +238,7 @@ erlangFlags:
   # Older versions of the official CouchDB image (anything prior to 3.2.1)
   # do not act on the COUCHDB_ERLANG_COOKIE environment variable, so if you
   # want to cluster these deployments it's necessary to pass in a cookie here
-  # setcookie: make-something-up
+  # setcookie: change-me
 
 # -- couchdbConfig will override default CouchDB configuration settings.
 # The contents of this map are reformatted into a .ini file laid down

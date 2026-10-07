@@ -1,0 +1,74 @@
+# =====================================================================
+# Keel — Helm values
+# Chart     : keel/keel (https://charts.keel.sh)
+# Repo      : helm repo add keel https://charts.keel.sh
+# Version   : chart 확인 필요 / app 확인 필요 (image.tag: latest)
+# Namespace : kube-system (Keel 권장 설치 위치 — 디렉터리명 예외)
+# Install   : helm upgrade --install keel keel/keel -n kube-system --create-namespace -f values.yaml
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# =====================================================================
+
+# 이미지 설정
+image:
+  repository: ghcr.io/keel-hq/keel
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# 이미지 풀 시크릿 (Private 레지스트리 사용 시 기입)
+imagePullSecrets: []
+
+# 환경변수 및 추가 인자
+extraEnv: []
+extraArgs: []
+
+# 레지스트리 확인 방식 설정 (하나만 활성화 권장)
+# 1. Polling: 주기적으로 레지스트리 체크
+polling:
+  enabled: true
+  defaultSchedule: "@every 1h"
+
+# Helm 공급자 설정 (Helm v3 필수 적용)
+helmProvider:
+  enabled: true
+  version: "v3"
+
+# 로그 및 알림 레벨 설정 (debug, info, success, warn, error, fatal)
+notificationLevel: info
+
+# Discord 알림 설정
+discord:
+  enabled: true
+  webhookUrl: "change-me"
+
+# 서비스 설정 (Webhook 수신용)
+service:
+  enabled: true
+  type: ClusterIP
+  externalPort: 9300
+  clusterIP: ""
+
+# 웹후크 수신용 Ingress 설정
+ingress:
+  enabled: false
+
+# RBAC 권한 설정
+rbac:
+  enabled: true
+  serviceAccount:
+    create: true
+  clusterRole:
+    create: true
+
+# 컨테이너 리소스 제한
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# 보안 컨텍스트
+podSecurityContext: {}
+containerSecurityContext: {}

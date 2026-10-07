@@ -1,0 +1,169 @@
+# =====================================================================
+# AI Stack (Ollama + Open WebUI) — Kubernetes manifest (직접 작성)
+# Images    : docker.io/ollama/ollama:latest, ghcr.io/open-webui/open-webui:main
+# Namespace : ai-stack
+# Apply     : kubectl apply -f ai-stack.yaml
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-stack
+
+---
+# 1. Open WebUI 데이터 저장용 경량 Longhorn PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-pvc
+  namespace: ai-stack
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai-stack
+  labels:
+    app: ollama
+  annotations:
+    diun.enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: docker.io/ollama/ollama:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 11434
+              name: ollama-port
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
+      volumes:
+        - name: ollama-models
+          hostPath:
+            path: /var/local/k3s-hostpath/ollama
+            type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-svc
+  namespace: ai-stack
+spec:
+  type: ClusterIP
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434
+      protocol: TCP
+      name: ollama-port
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  namespace: ai-stack
+  labels:
+    app: open-webui
+  annotations:
+    diun.enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-webui
+  template:
+    metadata:
+      labels:
+        app: open-webui
+    spec:
+      containers:
+        - name: open-webui
+          image: ghcr.io/open-webui/open-webui:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama-svc.ai-stack.svc.cluster.local:11434"
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-stack-secret
+                  key: open-webui-secret-key
+          volumeMounts:
+            - name: webui-data
+              mountPath: /app/backend/data
+      volumes:
+        - name: webui-data
+          persistentVolumeClaim:
+            claimName: open-webui-pvc
+
+---
+# 5. Open WebUI 내부 통신용 Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: open-webui-svc
+  namespace: ai-stack
+spec:
+  type: ClusterIP
+  selector:
+    app: open-webui
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+
+---
+# 6. 외부 노출용 Traefik Ingress (기존 보안 어노테이션 적용)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-webui-ingress
+  namespace: ai-stack
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    traefik.ingress.kubernetes.io/router.middlewares: "traefik-cloudflare-only@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: ai.techbara.dev # [도메인 설정] 원하는 서브도메인으로 변경하세요.
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: open-webui-svc
+                port:
+                  number: 8080

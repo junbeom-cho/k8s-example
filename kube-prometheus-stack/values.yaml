@@ -1,6 +1,14 @@
-# ==========================================================
-# kube-prometheus-stack Helm Chart Values
-# ==========================================================
+# =====================================================================
+# kube-prometheus-stack — Helm values
+# Chart     : kube-prometheus-stack (oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack — OCI, repo add 불필요)
+# Version   : chart 86.2.3 / app v0.91.0 (prometheus-operator) (마지막 사용 기준)
+# Namespace : kube-prometheus-stack
+# Install   : helm upgrade --install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack -n kube-prometheus-stack --create-namespace -f values.yaml
+# 참고      : 같은 차트가 HTTP 저장소에도 있습니다 → helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#             (이 경우 차트 이름은 prometheus-community/kube-prometheus-stack)
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# =====================================================================
 
 fullnameOverride: "grafana"
 

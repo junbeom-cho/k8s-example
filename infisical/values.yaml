@@ -1,3 +1,18 @@
+# =====================================================================
+# Infisical — Helm values
+# Chart     : infisical-helm-charts/infisical-standalone (https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/)
+# Repo      : helm repo add infisical-helm-charts https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+# Version   : chart 1.9.0 / app v0.158.0 (마지막 사용 기준; 차트 기본 image.tag — Chart.yaml 의 appVersion 표기는 1.0.1)
+# Namespace : infisical
+# Install   : helm upgrade --install infisical infisical-helm-charts/infisical-standalone -n infisical --create-namespace -f values.yaml
+# Operator  : Infisical secrets-operator 는 별도 차트이며 기본값으로 설치합니다 (마지막 사용 chart 0.11.0 / app v0.11.0).
+#             helm upgrade --install secrets-operator infisical-helm-charts/secrets-operator -n infisical
+# 참고      : 앱 설정/DB 접속 정보는 infisical-secret(kubeSecretRef)로 주입 → secret.yaml.example
+# 주의      : redis.auth.password 는 change-me 가 그대로 쓰이므로 설치 시 실제 값으로 교체 (--set 권장)
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# =====================================================================
+
 # -- Overrides the default release name
 nameOverride: "infisical"
 
@@ -158,7 +173,7 @@ postgresql:
     # -- Database username for PostgreSQL
     username: infisical
     # -- Password for PostgreSQL database access
-    password: root
+    password: change-me
     # -- Database name for Infisical
     database: infisicalDB
 
@@ -194,7 +209,7 @@ redis:
 
   auth:
     # -- Redis password
-    password: "mysecretpassword"
+    password: "change-me"
 
   # -- Redis deployment type (e.g., standalone or cluster)
   architecture: standalone

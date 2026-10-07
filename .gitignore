@@ -1,3 +1,7 @@
 *.env
-apps/homepage/config/logs
+homepage/config/logs/
 node_modules
+
+# secret.yaml.example / secret-sync.yaml.example 을 복사해 실제 값을 채운 파일 — 커밋 금지
+secret.yaml
+secret-sync.yaml

@@ -1,0 +1,84 @@
+# =====================================================================
+# CrowdSec — Helm values
+# Chart     : crowdsec/crowdsec (https://crowdsecurity.github.io/helm-charts)
+# Repo      : helm repo add crowdsec https://crowdsecurity.github.io/helm-charts
+# Version   : chart 0.24.0 / app v1.7.8 (마지막 사용 기준)
+# Namespace : crowdsec
+# Install   : helm upgrade --install crowdsec crowdsec/crowdsec -n crowdsec --create-namespace -f values.yaml
+# 참고      : crowdsec-secret 필요(secret.yaml.example). DB 는 공유 PostgreSQL
+#             (postgres.database.svc.cluster.local, crowdsec_db / crowdsec_user).
+#             Traefik bouncer 는 crowdsec-traefik-bouncer.yaml 로 별도 적용합니다.
+# 주의      : config.parsers.s02-enrich 의 신뢰 IP allowlist 는 change-me → 사용 시 신뢰할 외부 IP 로 교체
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 차트/앱 최신 버전과
+#    values 키 변경(Breaking Changes) 여부를 반드시 확인하세요.
+# =====================================================================
+
+container_runtime: containerd
+
+agent:
+  acquisition:
+    - namespace: traefik
+      podName: traefik-*
+      program: traefik
+      poll_without_inotify: true
+  env:
+    - name: COLLECTIONS
+      value: "crowdsecurity/traefik crowdsecurity/base-http-scenarios"
+
+lapi:
+  env:
+    - name: ENROLL_KEY
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: ENROLL_KEY
+    - name: ENROLL_INSTANCE_NAME
+      value: "my-k3s-cluster"
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: DB_PASSWORD
+    - name: BOUNCER_KEY_traefik
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-secret
+          key: BOUNCER_API_KEY
+
+config:
+  parsers:
+    s02-enrich:
+      local-ip-allowlist.yaml: |
+        name: local/trusted-ip-allowlist
+        description: "Allowlist trusted external IPs"
+        filter: "1 == 1"
+        whitelist:
+          reason: "trusted external IP"
+          ip:
+            - "change-me"
+
+  config.yaml.local: |
+    api:
+      server:
+        auto_registration:
+          enabled: true
+          token: "${REGISTRATION_TOKEN}"
+          allowed_ranges:
+            - "127.0.0.1/32"
+            - "10.0.0.0/8"
+            - "172.16.0.0/12"
+            - "192.168.0.0/16"
+        
+    db_config:
+      type: postgresql
+      user: crowdsec_user
+      password: ${DB_PASSWORD}
+      db_name: crowdsec_db
+      host: postgres.database.svc.cluster.local
+      port: 5432
+      flush:
+        bouncers_autodelete:
+          api_key: 1h
+        agents_autodelete:
+          login_password: 6h
+          cert: 6h

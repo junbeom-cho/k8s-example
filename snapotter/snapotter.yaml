@@ -1,11 +1,21 @@
-# ==================================================
-# SnapOtter (docker-compose.yml → K8s 변환)
+# =====================================================================
+# SnapOtter — Kubernetes manifest (직접 작성, docker-compose.yml → K8s 변환)
+# Images    : docker.io/snapotter/snapotter:2.2.0, docker.io/library/busybox:1.37
+# Namespace : snapotter
+# Apply     : kubectl apply -f snapotter.yaml
+# 주의      : snapotter ns 는 Helm 릴리스(Valkey)와 공유됩니다. kubectl delete -f 는 Namespace 까지 지우므로
+#             제거는 kubectl delete deploy/snapotter svc/snapotter ingress/snapotter cm/snapotter-config -n snapotter 로 하세요
+#             (PVC snapotter-data 는 데이터 보존을 위해 별도 판단).
+# ⚠️ 마지막 사용 시점 기준 설정입니다. 다음에 사용할 때는 이미지 태그/API 버전과
+#    설정 변경 여부를 반드시 확인하세요.
+# ---------------------------------------------------------------------
 #   템플릿: docs/templates/myapp.yaml
+#   원본  : docker-compose.yml (업스트림 compose, 변환 참고용 — K8s 에 적용하지 않음)
 #
 # compose 대비 변경점
 #   - postgres 컨테이너  → 삭제. database ns 의 공용 postgres 사용
 #                          (postgres.database.svc.cluster.local:5432 / snapotter_db)
-#   - redis 컨테이너     → snapotter ns 전용 Valkey (Helm, values-valkey-helmforge.yaml)
+#   - redis 컨테이너     → snapotter ns 전용 Valkey (Helm, values-valkey.yaml)
 #   - build:             → 퍼블리시된 이미지 사용 (docker.io/snapotter/snapotter:2.2.0)
 #   - ports: 1349:1349   → Service + Ingress (snapotter.techbara.dev)
 #
@@ -13,15 +23,17 @@
 #   1) database ns 의 postgres 에 DB/유저 생성 (snapotter_db / snapotter_user)
 #   2) Infisical 프로젝트 "snapotter" prod 환경에 아래 키 등록
 #      DATABASE_URL / REDIS_URL / VALKEY_PASSWORD / DEFAULT_PASSWORD / COOKIE_SECRET
-#      (키 목록은 snapotter-secret.yaml 참고)
+#      (키 목록은 secret.yaml.example 참고)
 #   3) Cloudflare 에 snapotter.techbara.dev DNS 레코드 추가
 #
 # 배포 순서 — Valkey 차트가 snapotter-secret 을 참조하므로 Secret 이 먼저 있어야 한다
-#   kubectl apply -f snapotter/snapotter.yaml              # Namespace 포함
-#   kubectl apply -f snapotter/snapotter-secret-sync.yaml  # Secret 생성 대기
+#   kubectl apply -f snapotter.yaml                # Namespace 포함
+#   kubectl apply -f secret-sync.yaml.example      # Secret 생성 대기
 #   helm upgrade --install valkey helmforge/valkey --version 1.0.1 \
-#     -n snapotter -f snapotter/values-valkey-helmforge.yaml
-# ==================================================
+#     -n snapotter -f values-valkey.yaml
+#   ※ 단, values-valkey.yaml 의 auth.existingSecret 은 현재 비어 있음(차트 기본값)
+#     → 재사용 시 values-valkey.yaml 헤더의 안내대로 Secret 참조를 먼저 확인할 것.
+# =====================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
